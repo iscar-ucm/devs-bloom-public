@@ -1,0 +1,9 @@
+# xDEVS stuff
+*.log
+# VSCODE stuff
+.vscode
+.project
+.settings
+.classpath
+# MAVEN stuff
+target

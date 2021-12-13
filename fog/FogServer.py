@@ -21,14 +21,26 @@ class FogServer(Atomic):
     def __init__(self, name, period):
         self.i_sensor_01 = Port(Input, "i_sensor_01")
         self.add_in_port(self.i_sensor_01)
+        self.i_sensor_01_values = []
         self.o_out = Port(Input, "o_out")
         self.add_out_port(self.o_out)
-        self.current_input = 0 # Averiguar cómo se pone un puntero nulo
-        self.current_input_sensor_01 = 0
+
+    def initialize(self):
+        self.passivate()
+
+    def exit(self):
+        pass
+
+    def lambdaf(self):
+        self.o_out.add(self.input_values)
+
+    def deltext(self, e):
+        self.continuef(e)
+        if (self.i_sensor_01.empty() == False): 
+            self.i_sensor_01_values.append(self.i_sensor_01.get())
+
 
     protected Input currentInputNodovirtual2 = null;
-
-    protected Port<Input> oOut = new Port<>("oOut");
 
     protected double processingTime;
     protected ArrayList<Input> listaInputs = new ArrayList<Input>();
@@ -114,29 +126,7 @@ class FogServer(Atomic):
       //########################################
     }
 
-    /*
-    public FogServer(Element xmlAtomic) {
-        super(xmlAtomic);
-        iArrived = (Port<Input>) super.getInPort(iArrived.getName());
-        iSolved = (Port<Input>) super.getInPort(iSolved.getName());
-        oOut = (Port<Input>) super.getOutPort(oOut.getName());  
-        NodeList xmlParameters = xmlAtomic.getElementsByTagName("parameter");
-        Element xmlParameter = (Element)xmlParameters.item(0);
-        totalTa = 0;
-        clock = 0;
-        observationTime = Double.valueOf(xmlParameter.getAttribute("value"));
-    }
-	*/
     
-    @Override
-    public void initialize() {
-        //super.holdIn("active", processingTime);
-        super.passivate();
-    }
-
-    @Override
-    public void exit() {
-    }
 
     @Override
     public void deltint() {
@@ -366,90 +356,3 @@ class FogServer(Atomic):
         }
     }
     
-    public static double variograma(Double c0, Double c, int a, double h) {
-		if(h<a) {
-			return c0 + c * (1.5 *(h/a) - 0.5 * Math.pow((h/a), 3));
-		}
-		return c0+c;
-		
-	}
-    
-    public static double calculateKriging(ArrayList<Double> x, ArrayList<Double> y, ArrayList<Double> valores, double x0, double y0) {
-    	
-    	ArrayList<Double> hh = new ArrayList<Double>(); // Create an ArrayList object
-    	ArrayList<Double> vv = new ArrayList<Double>(); // Create an ArrayList object
-    	
-    	for (int i=0; i < x.size();i++) {
-			for(int j=1; j < x.size(); j++) {
-				hh.add(Math.sqrt( Math.pow((x.get(i) - x.get(j)),2) + Math.pow((y.get(i) - y.get(j)), 2) ));
-				vv.add(0.5 * Math.pow((valores.get(i) - valores.get(j)), 2));
-
-				
-			}
-		}
-		Collections.sort(hh);
-		Collections.sort(vv);
-		
-		double result = kriging(hh, vv,valores, x0, y0);
-		return result;
-    }
-    
-    public static double kriging(ArrayList<Double> h, ArrayList<Double> v, ArrayList<Double> valores, double x0, double y0) {
-		
-    	
-    	double f0 = 0;
-    	int  N = 2; // Indices de la Meseta
-		double c0 = v.get(0);
-		int cmax = v.size() - N;
-		double c = cmax - c0;
-		int a = h.size() - N;
-		
-		
-		System.out.println(x_list.size());
-		double [][] A = new double[x_list.size()+1][x_list.size()+1];
-		for(int i=0; i<x_list.size()+1; i++) {
-			for(int j=0; j<x_list.size()+1; j++) {
-				A[i][j] = 1.0;
-			}	
-		}
-		for(int i=0; i<x_list.size(); i++) {
-			for(int j=0; j<x_list.size(); j++) {
-				if(i==j) {
-					A[i][j] = 0;
-				}
-				else {
-					A[i][j] = variograma(c0, c, a, Math.sqrt( Math.pow(x_list.get(i) - x_list.get(j), 2) + Math.pow(y_list.get(i) - y_list.get(j), 2)));
-				}
-			}
-		}
-		A[x_list.size()][x_list.size()] = 0;
-		//Print matriz A
-		System.out.println("valores introducidos A:");
-        for (int i = 0; i < A.length; i++) { 
-            for (int j = 0; j < A[i].length; j++) {
-                System.out.print(A[i][j] + " ");
-            }
-            System.out.println();
-        }
-        double [][] B = new double[x_list.size()+1][1];
-        for(int i=0; i <x_list.size(); i++) {
-        	B[i][0] = variograma(c0, c, a, Math.sqrt(Math.pow(x_list.get(i) - x0, 2)+ Math.pow(y_list.get(i) - y0, 2)));
-        }
-        
-        Matrix A_matrix = new Matrix(A);
-        Matrix B_matrix = new Matrix(B);
-        A_matrix.print(5, 2);
-        B_matrix.print(5, 2);
-        
-        Matrix w = A_matrix.inverse().times(B_matrix);
-        w.print(5, 2);
-        
-        for(int i=0; i<valores.size(); i++) {
-        	f0 += w.get(i, 0)*valores.get(i);
-        }
-        System.out.println("f0= " + f0);
-        
-        return f0;
-    }
-    
-}

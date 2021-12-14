@@ -1,5 +1,8 @@
 from xdevs import PHASE_ACTIVE, PHASE_PASSIVE, get_logger
 from xdevs.models import Atomic, Port
+from sklearn.neighbors import LocalOutlierFactor
+import pandas as pd
+import numpy as np
 import logging
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -18,14 +21,20 @@ class Input:
 class FogServer(Atomic):    
     ''' A model for the fog server'''
 
-    def __init__(self, name, period):
-        self.i_sensor_01 = Port(Input, "i_sensor_01")
-        self.add_in_port(self.i_sensor_01)
-        self.i_sensor_01_values = []
-        self.o_out = Port(Input, "o_out")
-        self.add_out_port(self.o_out)
+    def __init__(self, name, n_samples):
+        super().__init__(name)
+        self.n_samples = n_samples
+        self.i_in = Port(Input, "i_in")
+        self.add_in_port(self.i_in)
+        self.o_out_raw = Port(Input, "o_out_raw")
+        self.add_out_port(self.o_out_raw)
+        self.o_out_new = Port(Input, "o_out_new")
+        self.add_out_port(self.o_out_new)
 
     def initialize(self):
+        self.dfs = {}
+        self.current_input = pd.DataFrame()
+        self.current_output = None
         self.passivate()
 
     def exit(self):
@@ -36,9 +45,21 @@ class FogServer(Atomic):
 
     def deltext(self, e):
         self.continuef(e)
-        if (self.i_sensor_01.empty() == False): 
-            self.i_sensor_01_values.append(self.i_sensor_01.get())
+        if (self.i_in.empty() == False):
+            current_input = self.i_input.get()
 
+
+    def deltint(self):
+        if(len(self.i_sensor_01_values)>=100):
+            # Calculo outliers: https://machinelearningmastery.com/model-based-outlier-detection-and-removal-in-python/
+            lof = LocalOutlierFactor()
+            data_outliers = lof.fit_predict(self.i_sensor_01_values)
+            # Seleccionamos todas las filas que no son outliers:
+            mask = data_outliers != -1
+            new_isensor_01_values = self.i_sensor_01_values[mask]
+            # Ahora reparamos los outliers con una regresión lineal
+            model = LinearRegression()
+            model.fit()
 
     protected Input currentInputNodovirtual2 = null;
 
@@ -297,7 +318,7 @@ class FogServer(Atomic):
     }
     
     
-    //Calculo Outliers http://www.mathwords.com/o/outlier.htm
+    # Calculo Outliers http://www.mathwords.com/o/outlier.htm
     public static List<Input> getOutliers(List<Input> input) {
         List<Input> output = new ArrayList<Input>();
         List<Input> data1 = new ArrayList<Input>();

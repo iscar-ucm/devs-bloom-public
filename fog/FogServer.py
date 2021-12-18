@@ -1,55 +1,65 @@
-from xdevs import PHASE_ACTIVE, PHASE_PASSIVE, get_logger
-from xdevs.models import Atomic, Port
+from pandas.core.frame import DataFrame
 from sklearn.neighbors import LocalOutlierFactor
 import pandas as pd
 import numpy as np
 import logging
+from xdevs import PHASE_ACTIVE, PHASE_PASSIVE, get_logger
+from xdevs.models import Atomic, Port
+from data import Event
 
 logger = get_logger(__name__, logging.DEBUG)
 
-class Input:
-    '''Class that defines the input comming from a sensor'''
-
-    def __init__(self, date, value, sensor_name):
-        self.date = date
-        self.value = value
-        self.sensor_name = sensor_name
-
-    def to_string(self):
-        return "Input [value=" + self.value + ", sensor=" + self.sensor_name + ", Date=" + self.date + "]"
-
 class FogServer(Atomic):    
-    ''' A model for the fog server'''
+    ''' A model for the fog server.'''
 
     def __init__(self, name, n_samples):
         super().__init__(name)
         self.n_samples = n_samples
-        self.i_in = Port(Input, "i_in")
-        self.add_in_port(self.i_in)
-        self.o_out_raw = Port(Input, "o_out_raw")
-        self.add_out_port(self.o_out_raw)
-        self.o_out_new = Port(Input, "o_out_new")
-        self.add_out_port(self.o_out_new)
+        self.i_sensor_temp_01 = Port(Event, "i_sensor_temp_01")
+        self.add_in_port(self.i_sensor_temp_01)
+        self.o_sensor_temp_01_raw = Port(DataFrame, "o_sensor_temp_01_raw")
+        self.add_out_port(self.o_sensor_temp_01_raw)
+        self.o_sensor_temp_01_new = Port(DataFrame, "o_sensor_temp_01_new")
+        self.add_out_port(self.o_sensor_temp_01_new)
 
     def initialize(self):
-        self.dfs = {}
-        self.current_input = pd.DataFrame()
-        self.current_output = None
+        self.sensor_temp_01_raw = pd.DataFrame(columns=["id","timestamp","value"])
+        self.sensor_temp_01_new = pd.DataFrame(columns=["id","timestamp","value"])
+        self.counter = 0
         self.passivate()
 
     def exit(self):
         pass
 
     def lambdaf(self):
-        self.o_out.add(self.input_values)
+        self.o_sensor_temp_01_raw.add(self.sensor_temp_01_raw)
+        self.o_sensor_temp_01_new.add(self.sensor_temp_01_new)
 
     def deltext(self, e):
         self.continuef(e)
-        if (self.i_in.empty() == False):
-            current_input = self.i_input.get()
-
+        if (self.i_sensor_temp_01.empty() == False):
+            current_input = self.i_sensor_temp_01.get()
+            id = current_input.id
+            timestamp = current_input.timestamp
+            value = current_input.payload["temp"]
+            values = {"id": id, "timestamp": timestamp, "value": value}
+            self.sensor_temp_01_raw = self.sensor_temp_01_raw.append(values, ignore_index=True)
+            self.counter = self.counter + 1
+            if (self.counter == self.n_samples):
+                lof = LocalOutlierFactor()
+                wrong_values = lof.fit_predict(self.sensor_temp_01_raw[["value"]])
+                outlier_index = np.where(wrong_values == -1)
+                self.sensor_temp_01_new = self.sensor_temp_01_raw
+                self.sensor_temp_01_new.iloc[outlier_index,2] = np.nan
+                self.sensor_temp_01_new[["value"]] = self.sensor_temp_01_new[["value"]].interpolate()
+                super().activate()
 
     def deltint(self):
+        self.sensor_temp_01_raw = pd.DataFrame(columns=["id","timestamp","value"])
+        self.sensor_temp_01_new = pd.DataFrame(columns=["id","timestamp","value"])
+        self.counter = 0
+        self.passivate()
+
         if(len(self.i_sensor_01_values)>=100):
             # Calculo outliers: https://machinelearningmastery.com/model-based-outlier-detection-and-removal-in-python/
             lof = LocalOutlierFactor()

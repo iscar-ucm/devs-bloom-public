@@ -10,17 +10,9 @@ from xdevs.models import Atomic, Coupled, Port
 from xdevs.sim import Coordinator
 import datetime as dt
 from dataclasses import dataclass, field
+from util.event import Event
 
 logger = get_logger(__name__, logging.DEBUG)
-
-# TODO: Preguntar a Jesús cómo importar util.event
-@dataclass
-class Event:
-  '''A message to model events'''
-  id: str
-  source: str
-  timestamp: dt.datetime = field(default_factory=dt.datetime.now)
-  payload: dict = field(default_factory=dict)
 
 class TmpGenerator(Atomic):
     def __init__(self, name, num_events):

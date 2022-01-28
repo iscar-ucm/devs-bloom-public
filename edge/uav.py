@@ -3,7 +3,6 @@ from enum import Enum
 from dataclasses import dataclass, field
 from random import random
 
-
 from xdevs.models import Atomic, Port, Coupled
 from xdevs.sim import Coordinator
 
@@ -45,7 +44,6 @@ class Battery(Atomic):
     self.add_in_port(self.i_pwr)
     self.add_out_port(self.o_data)
     self.add_out_port(self.o_pwr)
-    print(self.out_ports)
     self.period = period
     self.clock = dt.datetime.now()
 
@@ -68,11 +66,11 @@ class Battery(Atomic):
     msg = self.i_pwr.get()
     if self.phase == PHASE_ON:
       if msg.id == EnergyEventId.POWER_DEMAND:
-        if self.mAh_left <= msg.payload['mAh']:
+        if self.mAh_left <= msg.payload['mAh'][0]:
           self.mAh_left = 0
           self.activate(PHASE_STOPPING)
           return
-        self.mAh_left -= msg.payload['mAh']
+        self.mAh_left -= msg.payload['mAh'][0]
 
   def lambdaf(self):
     if self.phase == PHASE_STARTING:
@@ -86,7 +84,7 @@ class Battery(Atomic):
         id=DataEventId.MEASUREMENT,
         source=f'{self.name}',
         timestamp=self.clock,
-        payload={ 'mAh': self.mAh_left }
+        payload={ 'mAh': [self.mAh_left] }
       ))
     elif self.phase == PHASE_STOPPING:
       print(f'POWER OFF: {self.name}')
@@ -124,7 +122,7 @@ class PoweredSensor(Atomic):
   def deltext(self, e: float):
     self.continuef(e)
     self.clock += dt.timedelta(seconds=e)
-    if not self.i_pwr.empty():
+    if self.i_pwr:
       msg = self.i_pwr.get()
       if msg.id == EnergyEventId.POWER_ON:
         print(f'POWER ON: {self.name}')
@@ -138,7 +136,7 @@ class PoweredSensor(Atomic):
       id=EnergyEventId.POWER_DEMAND,
       source=f'{self.name}',
       timestamp=self.clock,
-      payload={ 'mAh': 10 }
+      payload={ 'mAh': [10] }
     )
     measurement = Event(
       id=DataEventId.MEASUREMENT,
@@ -146,7 +144,7 @@ class PoweredSensor(Atomic):
       timestamp=self.clock,
       payload={ 'temperature': random() }
     )
-    #print(f'SENSOR: {self.clock}->{measurement}')
+    print(f'SENSOR: {self.clock}->{measurement}')
     self.o_pwr.add(energy)
     self.o_data.add(measurement)
 
@@ -178,30 +176,26 @@ class GenericCommunicationModule(Atomic):
     self.clock += dt.timedelta(seconds=self.sigma)
     if len(self.input_buffer) > 0:
       self.hold_in(PHASE_TRANSMIT, self.transmit_delay_ms/1000)
-    # else:
-    #   self.passivate(PHASE_ON)
+    else:
+      self.passivate(PHASE_ON)
 
   def deltext(self, e: float):
     self.continuef(e)
     self.clock += dt.timedelta(seconds=e)
-    print(f'COMMS: {self.clock}->')
-
     if self.i_pwr:
-      print('DDDD')
       msg = self.i_pwr.get()
       if msg.id == EnergyEventId.POWER_ON:
         print(f'POWER ON: {self.name}')
         self.activate(PHASE_ON)
       elif msg.id == EnergyEventId.POWER_OFF:
         print(f'POWER OFF: {self.name}')
-      print('DDDD')
         # self.passivate(PHASE_OFF)
-    # if not self.i_data.empty():
-    #   msg = self.i_data.get()
-    #   print(f'COMMS: {self.clock}->{msg}')
-    #   self.input_buffer.append(msg)
-    #   if self.phase != PHASE_OFF:
-    #     self.hold_in(PHASE_TRANSMIT, self.transmit_delay_ms/1000)
+    if self.i_data:
+      msg = self.i_data.get()
+      print(f'COMMS: {self.clock}->{msg}')
+      self.input_buffer.append(msg)
+      if self.phase != PHASE_OFF:
+        self.hold_in(PHASE_TRANSMIT, self.transmit_delay_ms/1000)
 
   def lambdaf(self):
     if self.phase == PHASE_TRANSMIT:
@@ -211,7 +205,7 @@ class GenericCommunicationModule(Atomic):
       self.o_pwr.add(Event(
         id=EnergyEventId.POWER_DEMAND,
         source=f'{self.name}',
-        payload={ 'mAh':100 }
+        payload={ 'mAh': [100] }
       ))
 
 
@@ -246,8 +240,6 @@ class Processor(Atomic):
   def deltext(self, e: float):
     self.continuef(e)
     self.clock += dt.timedelta(seconds=e)
-
-
     if not self.i_pwr.empty():
       msg = self.i_pwr.get()
       if msg.id == EnergyEventId.POWER_ON:
@@ -269,7 +261,7 @@ class Processor(Atomic):
     energy = Event(
       id=EnergyEventId.POWER_DEMAND,
       timestamp=self.clock,
-      payload={ 'mAh': 100 }
+      payload={ 'mAh': [100] }
     )
     self.o_pwr.add(energy)
     for o in self.input_buffer:
@@ -286,8 +278,8 @@ class UAV(Coupled):
     if period <= 0:
       raise ValueError("period has to be greater than 0")
 
-    battery = Battery("main_power_supply", mAh=1000, period=1)
-    sensor = PoweredSensor("temperature_sensor", period=1)
+    battery = Battery("main_power_supply", mAh=1000, period=period)
+    sensor = PoweredSensor("temperature_sensor", period=period)
     # processor = Processor("processor", period=10)
     comms = GenericCommunicationModule("generic_comms")
     # TO DO: Move to TestUAV {
@@ -379,7 +371,6 @@ class TestOutput(Atomic):
       self.hold_in(PHASE_ON, 1)
 
   def deltext(self, e: float):
-    print('DDDDDDDDDDDDDDDDDDDDDDDD')
     self.continuef(e)
     self.clock += dt.timedelta(seconds=e)
     print(self.i_in)
@@ -395,7 +386,7 @@ class TestUAV(Coupled):
 
     # scope_batt = Scope("Battery Scope", "mAh", ScopeView())
     # scope_sensor = Scope("Sensor Scope", "temperature", ScopeView())
-    output = TestOutput("", end_time=15)
+    output = TestOutput("", end_time=100)
     self.add_component(uav)
     self.add_component(output)
     # self.add_coupling(uav.get_out_port('o_data'), output.i_in)
@@ -404,9 +395,9 @@ class TestUAV(Coupled):
 # Test
 def test():
   # ScopeView.setFileOutput('output.html')
-  uav = UAV("Red Leader", 1)
+  uav = UAV("Red Leader", period=0.1)
   coupled = TestUAV("Test UAV", uav)
   coord = Coordinator(coupled, flatten=True)
   coord.initialize()
-  coord.simulate(30)
+  coord.simulate(300)
   coord.exit()

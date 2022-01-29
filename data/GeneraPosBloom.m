@@ -53,14 +53,19 @@ b=boolean(DetBb);
 plot3(PosX(b),PosY(b),PosZ(b),'-o')
 axis([min(PosX) max(PosX) min(PosY) max(PosY) min(PosZ) max(PosZ)])
 grid on
+xlabel('X')
+ylabel('Y')
+zlabel('Z')
 
 
-
- figure(3)
- F=scatteredInterpolant(PosX,PosY,DetB);
- x=[min(PosX):max(PosX)];y=[-40:40];z=[-30:0];
- [X,Y]=meshgrid(x,y);
- mesh(X,Y,F(X,Y));title('Planta XY')
+figure(3)
+F=scatteredInterpolant(PosX,PosY,DetB);
+x=[min(PosX):max(PosX)];y=[-40:40];z=[-30:0];
+[X,Y]=meshgrid(x,y);
+mesh(X,Y,F(X,Y));title('Planta XY')
+xlabel('X')
+ylabel('Y')
+zlabel('DetBloom')
 
 
  

@@ -6,31 +6,13 @@ import logging
 logger = get_logger(__name__, logging.INFO)
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 import pandas as pd
 import datetime as dt
 
-
-class DataEventId(Enum):
-  '''Allowed data events'''
-  POS3D = "position"
-  LATLON ="latlon"
-  DEPTH="depth"
-  TEMP = "temperature"
-  SUN="sun"
-  BLOOM="bloom"
-  POSBLOOM = "position&bloom"
-  DEFAULT="default"
-
-@dataclass
-class Event:
-  '''A message to model network message'''
-  id: str
-  source: str
-  timestamp: dt.datetime = field(default_factory=dt.datetime.now)
-  payload: dict = field(default_factory=dict)
-
+from site import addsitedir   #Para añadir la ruta del proyecto
+addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom") 
+from util.event import Event,DataEventId
 
 class FileIn(Atomic):
   '''A model to load datetime-values messages from datafile'''
@@ -49,8 +31,9 @@ class FileIn(Atomic):
       self.mydata=pd.read_excel(self.datafile)  #Sensor data loading
     if self.datafile[-1]=='v':
         self.mydata=pd.read_csv(self.datafile)  #Sensor data loading
+    #¡Se debe mejorar. No está protegido!
+    #¡Debe existir la TM para la fecha start!
     self.ind=self.mydata[self.mydata.DateTime == self.start].index.values
-    #¡Se debe mejorar. No está protegido, debe existir TM para la fecha start!
     self.columns=self.mydata.columns
     self.hold_in(PHASE_ACTIVE, 0)
     
@@ -71,24 +54,13 @@ class FileIn(Atomic):
   def lambdaf(self):
     row=self.mydata.iloc[self.ind]   #Telemetría
     self.ind=self.ind+1              #Actualizo indice a siguiente
-    datetime=row.DateTime.values     #Timestamp
-    fila=row.iloc[0,:].values     
-    #values=row.iloc[0,1:].values    #Payload
-    payload={}
-    if self.columns.size==2:
-      payload={self.columns[1]: fila[1] }
-    elif self.columns.size==3:
-      payload={self.columns[1]: fila[1],self.columns[2]: fila[2] }
-    elif self.columns.size==4:
-      payload={self.columns[1]: fila[1],self.columns[2]: fila[2],self.columns[3]: fila[3] }
-    else:  #Para más columnas no desgloso
-      payload={self.columns[1]: fila[0,1:]}
-    #msg=Event(id= self.dataid,source= self.datafile,timestamp=datetime,payload=values[:])
+    payload=row.to_dict('records')[0]
+    datetime=payload.pop('DateTime') 
     msg=Event(id= self.dataid.value,source= self.datafile,timestamp=datetime,payload=payload)
     self.o_out.add(msg)
     if self.log==True: 
       #logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], values)
-      logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], payload)
+      logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime, payload)
       #logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
       #logger.info(msg)
 
@@ -123,7 +95,7 @@ class FileOut(Atomic):
     if self.save==True:
       items=msg.payload.items()
       columns=["Id","Source","DateTime","PayLoad"]
-      content=[msg.id,msg.source,msg.timestamp[0],msg.payload]
+      content=[msg.id,msg.source,msg.timestamp,msg.payload]
       for it in items:
         columns.append(it[0])
         content.append(it[1])
@@ -131,7 +103,7 @@ class FileOut(Atomic):
       self.data=self.data.append(newdata.T,ignore_index=True)
     
     if self.log==True: 
-        logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp[0], msg.payload)
+        logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)
 	
     self.continuef(e)
   
@@ -141,8 +113,8 @@ class FileOut(Atomic):
 
 class FussionPosBloom(Atomic):
   '''A model of edge data fussion'''
-   # Este se encarga de fusionar datos de posición y de Detector de Bloom
-  def __init__(self, name, log=False):        #Period 1h
+   # Este se encarga de fusionar datos de Posición del barco y del Detector de Bloom
+  def __init__(self, name, log=False):        
     super().__init__(name)
     self.i_Pos = Port(Event, "i_Pos")
     self.add_in_port(self.i_Pos)
@@ -172,7 +144,8 @@ class FussionPosBloom(Atomic):
     if (in2!=None):self.msg2=in2
     #Espero a tener los tres datos
     if (self.msg1!=None) & (self.msg2!=None):
-      #Ejemplo de mezcla de mensajes, uno los PayLoads
+      #Ejemplo de mezcla de mensajes, 
+      # Concateno los dos PayLoads y tomo DateTime del primero
       newpayload={**self.msg1.payload,**self.msg2.payload}   
       self.msg=Event(id= DataEventId.POSBLOOM.value,source= self.name,timestamp=self.msg1.timestamp,payload=newpayload)
       self.in1=None
@@ -233,13 +206,12 @@ if __name__ == "__main__":
   startdt=dt.datetime(2021,8,1,0,0,0)
   enddt=dt.datetime(2021,8,2,0,0,0)
   #enddt=dt.datetime(2021,8,3,0,0,0)
- 
+  simseconds=(enddt-startdt).total_seconds()
   #coupled = Test1("ExampleTest1ByPass", start=startdt, log=True)
   coupled = Test2("ExampleBloomDetection", start=startdt, log=True)
   coord = Coordinator(coupled, flatten=True)
   print('Ini Simulación')
   coord.initialize()
-  simseconds=(enddt-startdt).total_seconds()
   coord.simulate_time(simseconds)   #En segundos
   coord.exit()
   print('Fin Simulación')

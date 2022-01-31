@@ -43,10 +43,13 @@ class FileIn(Atomic):
   def deltint(self):
     #Calcula delta tiempo hasta siguiente Telemetría
     Actual=self.mydata.iloc[self.ind].DateTime.values
-    Futura=self.mydata.iloc[self.ind+1].DateTime.values
-    delta=Futura-Actual
-    seconds=int(delta)/1e9 #ns->s
-    self.hold_in(PHASE_ACTIVE, seconds) 
+    if self.ind[0] >= self.mydata.DateTime.count()-1:
+      self.passivate()
+    else:
+      Futura=self.mydata.iloc[self.ind+1].DateTime.values
+      delta=Futura-Actual
+      seconds=int(delta)/1e9 #ns->s
+      self.hold_in(PHASE_ACTIVE, seconds) 
   
   def deltext(self, e: Any):
     pass 
@@ -198,7 +201,53 @@ class Test2(Coupled):
     self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
     self.add_coupling(EdgFus.o_out, filePB.i_in)
 
+class Test20210801(Coupled):
+  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
+  def __init__(self, name, start, log=False):
+    super().__init__(name)
+    filePi = FileIn("ShipPos", './data/LatLon20210801.xlsx', start=start, dataid=DataEventId.POS3D, log=log)     
+    fileBi = FileIn("DetBlo", './data/DetBloom20210801.xlsx',start=start, dataid=DataEventId.BLOOM, log=log)     
+    EdgFus= FussionPosBloom("EdgeFussion") #Fusiona Posición del barco con medida de Sensor de Bloom
+    filePB = FileOut("filePB", './data/FileOut20210801.xlsx', log=log)     
+    self.add_component(filePi)   
+    self.add_component(fileBi)
+    self.add_component(EdgFus)
+    self.add_component(filePB)
+    self.add_coupling(filePi.o_out, EdgFus.i_Pos)
+    self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
+    self.add_coupling(EdgFus.o_out, filePB.i_in)
 
+class Test20210802(Coupled):
+  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
+  def __init__(self, name, start, log=False):
+    super().__init__(name)
+    filePi = FileIn("ShipPos", './data/LatLon20210802.xlsx', start=start, dataid=DataEventId.POS3D, log=log)     
+    fileBi = FileIn("DetBlo", './data/DetBloom20210802.xlsx',start=start, dataid=DataEventId.BLOOM, log=log)     
+    EdgFus= FussionPosBloom("EdgeFussion") #Fusiona Posición del barco con medida de Sensor de Bloom
+    filePB = FileOut("filePB", './data/FileOut20210802.xlsx', log=log)     
+    self.add_component(filePi)   
+    self.add_component(fileBi)
+    self.add_component(EdgFus)
+    self.add_component(filePB)
+    self.add_coupling(filePi.o_out, EdgFus.i_Pos)
+    self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
+    self.add_coupling(EdgFus.o_out, filePB.i_in)
+
+class Test20210801(Coupled):
+  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
+  def __init__(self, name, start, log=False):
+    super().__init__(name)
+    filePi = FileIn("ShipPos", './data/LatLon20210801.xlsx', start=start, dataid=DataEventId.POS3D, log=log)     
+    fileBi = FileIn("DetBlo", './data/DetBloom20210801.xlsx',start=start, dataid=DataEventId.BLOOM, log=log)     
+    EdgFus= FussionPosBloom("EdgeFussion") #Fusiona Posición del barco con medida de Sensor de Bloom
+    filePB = FileOut("filePB", './data/FileOut20210801.xlsx', log=log)     
+    self.add_component(filePi)   
+    self.add_component(fileBi)
+    self.add_component(EdgFus)
+    self.add_component(filePB)
+    self.add_coupling(filePi.o_out, EdgFus.i_Pos)
+    self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
+    self.add_coupling(EdgFus.o_out, filePB.i_in)
 
 if __name__ == "__main__":
   #startdt=dt.datetime(2021,8,1,0,0,0)
@@ -208,7 +257,9 @@ if __name__ == "__main__":
   #enddt=dt.datetime(2021,8,3,0,0,0)
   simseconds=(enddt-startdt).total_seconds()
   #coupled = Test1("ExampleTest1ByPass", start=startdt, log=True)
-  coupled = Test2("ExampleBloomDetection", start=startdt, log=True)
+  #coupled = Test2("ExampleBloomDetection", start=startdt, log=True)
+  coupled = Test20210801("BloomDetection20210801", start=startdt, log=True)
+  
   coord = Coordinator(coupled, flatten=True)
   print('Ini Simulación')
   coord.initialize()

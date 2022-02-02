@@ -1,19 +1,25 @@
+"""Fichero que implementa las clases principales para la capa Fog."""
+
 import pandas as pd
 import numpy as np
 import datetime as dt
 import random as rnd
 import sklearn.neighbors as nb
 import logging
-from xdevs import PHASE_ACTIVE, PHASE_PASSIVE, get_logger
+from xdevs import PHASE_ACTIVE, get_logger
 from xdevs.models import Atomic, Coupled, Port
 from xdevs.sim import Coordinator
 from util.event import Event
-#from dataclasses import dataclass, field
+# from dataclasses import dataclass, field
 
 logger = get_logger(__name__, logging.DEBUG)
 
+
 class TmpGenerator(Atomic):
+    """Clase generadora de datos. Es un recurso temporal, para pruebas."""
+
     def __init__(self, name, num_events):
+        """Función de inicialización de atributos."""
         super().__init__(name)
         self.o_out = Port(Event, "o_out")
         self.add_out_port(self.o_out)
@@ -39,14 +45,15 @@ class TmpGenerator(Atomic):
 
     def lambdaf(self):
         value = rnd.randint(35,37)
-        if (rnd.random()<0.01):
-            value = -value # Outlier
-        event = Event(id=str(self.counter), source="sensor_temp_01", timestamp=dt.datetime.now, payload={"temp": value})
+        if (rnd.random() < 0.01):
+            value = -value  # Outlier
+        event = Event(id=str(self.counter), source="sensor_temp_01",
+                      timestamp=dt.datetime.now, payload={"temp": value})
         self.o_out.add(event)
 
 
 class FogServer(Atomic):
-    ''' A model for the fog server.'''
+    """ A model for the fog server."""
 
     def __init__(self, name, n_samples):
         super().__init__(name)

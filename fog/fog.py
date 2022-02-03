@@ -52,8 +52,8 @@ class TmpGenerator(Atomic):
         self.o_out.add(event)
 
 
-class FogServer(Atomic):
-    """Servidor Fog."""
+class FogHub(Atomic):
+    """Hub de datos del servidor Fog."""
 
     def __init__(self, name, n_samples=100):
         """Función de inicialización de atributos."""
@@ -173,13 +173,42 @@ class FogServer(Atomic):
         self.passivate()
 
 
+class FogDb(Atomic):
+    """Clase para guardar datos en la base de datos."""
+
+    def __init__(self, name):
+        """Función de inicialización de atributos."""
+        super().__init__(name)
+        self.i_fusion_01 = Port(Event, "i_fusion_01")
+        self.add_in_port(self.i_fusion_01)
+
+    def initialize(self):
+        """Inicialización de la simulación DEVS."""
+        # TODO: Aquí tenemos que crear el archivo de salida:
+        pass
+
+    def exit(self):
+        """Función de salida de la simulación."""
+        # Aquí tenemos que cerrar el archivo
+        pass
+
+    def deltext(self, e):
+        """Función DEVS de transición externa."""
+        self.continuef(e)
+        # Procesamos el puerto i_fusion_01:
+        if(self.i_fusion_01.empty() is False):
+            msg = self.i_fusion_01.get()
+            # Aquí tenemos que escribir en el archivo
+            super().passivate()
+
+
 class TestFogServer(Coupled):
     """Clase para evaluar FogServer."""
     def __init__(self, name, num_events=1000, n_samples=100):
         """Inicialización de atributos."""
         super().__init__(name)
         gen = TmpGenerator("generator", num_events)
-        fog = FogServer("fog", n_samples)
+        fog = FogHub("fog", n_samples)
         self.add_component(gen)
         self.add_component(fog)
         self.add_coupling(gen.o_out, fog.i_sensor_temp_01)

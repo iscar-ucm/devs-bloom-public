@@ -55,58 +55,72 @@ class TmpGenerator(Atomic):
 class FogHub(Atomic):
     """Hub de datos del servidor Fog."""
 
-    def __init__(self, name, n_samples=100):
+    def __init__(self, name, n_offset=100):
         """Función de inicialización de atributos."""
         super().__init__(name)
-        self.n_samples = n_samples
+        self.n_offset = n_offset
         # Puertos de ejemplo, sobre los que se hace detección de outliers:
+        """
         self.i_sensor_temp_01 = Port(Event, "i_sensor_temp_01")
         self.add_in_port(self.i_sensor_temp_01)
         self.o_sensor_temp_01_raw = Port(pd.DataFrame, "o_sensor_temp_01_raw")
         self.add_out_port(self.o_sensor_temp_01_raw)
         self.o_sensor_temp_01_new = Port(pd.DataFrame, "o_sensor_temp_01_new")
         self.add_out_port(self.o_sensor_temp_01_new)
+        """
         # Puerto con los datos de barco y bloom fusionados.
         # Cada n_samples se agrupan los datos en un dataframe y se lanzan al
         # Cloud.
         self.i_fusion_01 = Port(Event, "i_fusion_01")
-        self.o_fusion_01 = Port(pd.DataFrame, "o_fusion_01")
+        # Se transmiten los datos tal cual llegan:
+        self.o_fusion_01_raw = Port(Event, "o_fusion_01_raw")
+        # Se transmiten los datos tras la detección de outliers:
+        self.o_fusion_01_mod = Port(Event, "o_fusion_01_mod")
         self.add_in_port(self.i_fusion_01)
-        self.add_out_port(self.o_fusion_01)
+        self.add_out_port(self.o_fusion_01_raw)
+        self.add_out_port(self.o_fusion_01_mod)
 
     def initialize(self):
         """Incialización de la simulación DEVS."""
+        """
         self.sensor_temp_01_raw = pd.DataFrame(columns=["id",
                                                         "timestamp",
                                                         "value"])
         self.sensor_temp_01_new = pd.DataFrame(columns=["id",
                                                         "timestamp",
                                                         "value"])
-        self.fusion_01_raw = pd.DataFrame(columns=["id",
-                                                   "source",
-                                                   "datetime",
-                                                   "payload"])
+                                                        """
+        # Memoria cache para ir detectanto los outliers:
+        self.msg_raw = None
+        self.msg_mod = None
+        self.fusion_01_cache = pd.DataFrame(columns=["Lat",
+                                                     "Lon",
+                                                     "Depth",
+                                                     "DetB",
+                                                     "DetBb"])
         # TODO: Esto lo tengo que pasar a otro modelo atómico, de hecho:
         # 1.- FogServer pasaría a ser FogData.
         # 2.- Nuevo modelo atómico FogDb que almacene datos y detecte outliers.
         # 3.- Nuemo modelo acoplado FogServer que incluya estos dos.
+        """
         self.fusion_01_db = pd.DataFrame(columns=["id",
                                                   "source",
                                                   "datetime",
                                                   "payload"])
-        self.sensor_temp_01_counter = 0
+"""
+        # self.sensor_temp_01_counter = 0
         self.fusion_01_counter = 0
         self.passivate()
 
     def exit(self):
         """Función de salida de la simulación."""
-        self.fusion_01_db.to_csv("data/FogData.csv")
+        # self.fusion_01_db.to_csv("data/FogData.csv")
+        pass
 
     def lambdaf(self):
         """Función DEVS de salida."""
-        if (self.sensor_temp_01_counter == self.n_samples):
-            self.o_sensor_temp_01_raw.add(self.sensor_temp_01_raw)
-            self.o_sensor_temp_01_new.add(self.sensor_temp_01_new)
+        self.o_fusion_01_raw.add(self.msg_raw)
+        self.o_fusion_01_mod.add(self.msg_mod)
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
@@ -115,8 +129,36 @@ class FogHub(Atomic):
         # Procesamos el puerto i_fusion_01:
         if (self.i_fusion_01.empty() is False):
             msg = self.i_fusion_01.get()
+            self.msg_raw = msg
+            self.msg_mod = msg
+            # Añadimos el mensaje al diccionario:
+            content = pd.Series(list(msg.payload.items()),
+                                index=self.fusion_01_cache.columns)
+            self.fusion_01_cache = self.fusion_01_cache.append(content, ignore_index=True)
+            self.fusion_01_counter += 1
+            if(self.fusion_01_counter >= self.n_offset):
+                # Para evitar desbordamientos si nos vienen muchos datos:
+                self.fusion_01_counter = self.n_offset
+                lof = nb.LocalOutlierFactor()
+                wrong_values = lof.fit_predict(self.fusion_01_cache)
+                outlier_index = np.where(wrong_values == -1)
+                self.fusion_01_cache.iloc[outlier_index, ] = np.nan
+                if(np.size(outlier_index) > 0):
+                    self.fusion_01_cache = self.fusion_01_cache.interpolate()
+                    # self.msg_mod tiene que ser el último elemento del DF y
+                    # hay que eliminar el primer elemento del DF.
+                    content = list(self.fusion_01_cache.iloc[-1])
+                    self.msg_mod.payload['Lat'] = content[0]
+                    self.msg_mod.payload['Lon'] = content[1]
+                    self.msg_mod.payload['Depth'] = content[2]
+                    self.msg_mod.payload['DetB'] = content[4]
+                    self.msg_mod.payload['DetBb'] = content[5]
+                    self.fusion_01_cache.drop(index=self.fusion_01_cache.index[0], axis=0, inplace=True)
+                    # TODO: CONTINÚA AQUÍ
+            super().activate()
+            """msg = self.i_fusion_01.get()
             items = msg.payload.items()
-            columns = ["id", "source", "datetime", "payload"]
+            columns = ["id", "source", "", "payload"]
             content = [msg.id, msg.source, msg.timestamp, msg.payload]
             for item in items:
                 columns.append(item[0])
@@ -130,7 +172,7 @@ class FogHub(Atomic):
             if(self.fusion_01_counter == self.n_samples):
                 # De momento, no comprobamos outliers.
                 super().activate()
-
+"""
         if (self.i_sensor_temp_01.empty() is False):
             current_input = self.i_sensor_temp_01.get()
             id = current_input.id
@@ -140,7 +182,7 @@ class FogHub(Atomic):
             self.sensor_temp_01_raw = self.sensor_temp_01_raw.append(
                 values, ignore_index=True)
             self.sensor_temp_01_counter = self.sensor_temp_01_counter + 1
-            if (self.sensor_temp_01_counter == self.n_samples):
+            if (self.sensor_temp_01_counter == self.n_offset):
                 lof = nb.LocalOutlierFactor()
                 wrong_values = lof.fit_predict(self.sensor_temp_01_raw[["value"]])
                 outlier_index = np.where(wrong_values == -1)
@@ -154,7 +196,7 @@ class FogHub(Atomic):
     def deltint(self):
         """Función DEVS de transición interna."""
         # Reinicialización del dataframe temporal:
-        if(self.fusion_01_counter == self.n_samples):
+        if(self.fusion_01_counter == self.n_offset):
             self.fusion_01_raw = pd.DataFrame(columns=["id",
                                                        "source",
                                                        "datetime",
@@ -162,7 +204,7 @@ class FogHub(Atomic):
             self.fusion_01_counter = 0
 
         # Reinicialización del dataframe temporal:
-        if(self.sensor_temp_01_counter == self.n_samples):
+        if(self.sensor_temp_01_counter == self.n_offset):
             self.sensor_temp_01_raw = pd.DataFrame(columns=["id",
                                                             "timestamp",
                                                             "value"])

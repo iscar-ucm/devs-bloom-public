@@ -4,7 +4,7 @@ from xdevs.models import Coupled
 import datetime as dt
 from xdevs.sim import Coordinator
 from edge.file import FileIn, FussionPosBloom
-from fog.fog import FogHub
+from fog.fog import FogServer
 from util.event import DataEventId
 
 
@@ -21,7 +21,7 @@ class Model_01(Coupled):
         # Fusiona Posición del barco con medida de Sensor de Bloom
         edge_fusion = FussionPosBloom("EdgeFussion")
         # Capa Fog:
-        fog_server = FogHub("FogServer", 100)
+        fog_server = FogServer("FogServer_01", 100)
         self.add_component(file_ship)
         self.add_component(file_bloom)
         self.add_component(edge_fusion)

@@ -16,81 +16,95 @@ logger = get_logger(__name__, logging.DEBUG)
 class FogHub(Atomic):
     """Hub de datos del servidor Fog."""
 
-    def __init__(self, name, n_offset=100):
+    def __init__(self, name, n_uav=1, n_offset=100):
         """Función de inicialización de atributos."""
         super().__init__(name)
+        self.n_uav = n_uav
         self.n_offset = n_offset
-        # Puerto con los datos de barco y bloom fusionados.
-        self.i_fusion_01 = Port(Event, "i_fusion_01")
-        # Se transmiten los datos tal cual llegan:
-        self.o_fusion_01_raw = Port(Event, "o_fusion_01_raw")
-        # Se transmiten los datos tras la detección de outliers:
-        self.o_fusion_01_mod = Port(Event, "o_fusion_01_mod")
-        self.add_in_port(self.i_fusion_01)
-        self.add_out_port(self.o_fusion_01_raw)
-        self.add_out_port(self.o_fusion_01_mod)
+        # Puertos con los datos de barco y bloom fusionados.
+        for i in range(1, self.n_uav+1):
+            port_suf = "fusion_" + str(i)
+            self.add_in_port(Port(Event, "i_" + port_suf))
+            self.add_out_port(Port(Event, "o_" + port_suf + "_raw"))
+            self.add_out_port(Port(Event, "o_" + port_suf + "_mod"))
 
     def initialize(self):
         """Incialización de la simulación DEVS."""
         # Memoria cache para ir detectanto los outliers:
-        self.msg_raw = None
-        self.msg_mod = None
-        self.fusion_01_cache = pd.DataFrame(columns=["Lat",
-                                                     "Lon",
-                                                     "Depth",
-                                                     "DetB",
-                                                     "DetBb"])
-        self.fusion_01_counter = 0
+        self.msg_raw = {}
+        self.msg_mod = {}
+        self.cache = {}
+        self.counter = {}
+        for i in range(1, self.n_uav+1):
+            uav = "fusion_" + str(i)
+            self.msg_raw[uav + "_raw"] = None
+            self.msg_mod[uav + "_mod"] = None
+            self.cache[uav] = pd.DataFrame(columns=["Lat",
+                                                    "Lon",
+                                                    "Depth",
+                                                    "DetB",
+                                                    "DetBb"])
+            self.counter[uav] = 0
         self.passivate()
 
     def exit(self):
         """Función de salida de la simulación."""
-        # self.fusion_01_db.to_csv("data/FogData.csv")
         pass
 
     def lambdaf(self):
         """Función DEVS de salida."""
-        self.o_fusion_01_raw.add(self.msg_raw)
-        self.o_fusion_01_mod.add(self.msg_mod)
+        for i in range(1, self.n_uav+1):
+            uav = "fusion_" + str(i)
+            if self.msg_raw[uav] is not None:
+                self.out_ports["o_" + uav + "_raw"].add(self.msg_raw[uav])
+            if self.msg_mod[uav] is not None:
+                self.out_ports["o_" + uav + "_mod"].add(self.msg_mod[uav])
+
+    def deltint(self):
+        """Función DEVS de transición interna."""
+        for i in range(1, self.n_uav+1):
+            uav = "fusion_" + str(i)
+            self.msg_raw[uav] = None
+            self.msg_mod[uav] = None
+        self.passivate()
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
         self.continuef(e)
 
-        # Procesamos el puerto i_fusion_01:
-        if (self.i_fusion_01.empty() is False):
-            msg = self.i_fusion_01.get()
-            self.msg_raw = msg
-            self.msg_mod = msg
-            # Añadimos el mensaje al diccionario:
-            content = pd.Series(list(msg.payload.values()),
-                                index=self.fusion_01_cache.columns)
-            self.fusion_01_cache = self.fusion_01_cache.append(content, ignore_index=True)
-            self.fusion_01_counter += 1
-            if(self.fusion_01_counter >= self.n_offset):
-                # Para evitar desbordamientos si nos vienen muchos datos:
-                self.fusion_01_counter = self.n_offset
-                lof = nb.LocalOutlierFactor()
-                wrong_values = lof.fit_predict(self.fusion_01_cache)
-                outlier_index = np.where(wrong_values == -1)
-                self.fusion_01_cache.iloc[outlier_index, ] = np.nan
-                if(np.size(outlier_index) > 0):
-                    self.fusion_01_cache = self.fusion_01_cache.interpolate()
-                    # self.msg_mod tiene que ser el último elemento del DF y
-                    # hay que eliminar el primer elemento del DF.
-                    content = list(self.fusion_01_cache.iloc[-1])
-                    self.msg_mod.payload['Lat'] = content[0]
-                    self.msg_mod.payload['Lon'] = content[1]
-                    self.msg_mod.payload['Depth'] = content[2]
-                    self.msg_mod.payload['DetB'] = content[4]
-                    self.msg_mod.payload['DetBb'] = content[5]
-                    # Quitamos el primer elemento de la cache:
-                self.fusion_01_cache.drop(index=self.fusion_01_cache.index[0], axis=0, inplace=True)
-            super().activate()
-
-    def deltint(self):
-        """Función DEVS de transición interna."""
-        self.passivate()
+        # Procesamos los puertos de entrada:
+        for i in range(1, self.n_uav+1):
+            uav = "fusion_" + str(i)
+            iport = self.in_ports["i_" + uav]
+            if (iport.empty() is False):
+                msg = iport.get()
+                self.msg_raw[uav] = msg
+                self.msg_mod[uav] = msg
+                # Añadimos el mensaje al diccionario:
+                content = pd.Series(list(msg.payload.values()),
+                                    index=self.cache[uav].columns)
+                self.cache[uav] = self.cache[uav].append(content, ignore_index=True)
+                self.counter[uav] += 1
+                if(self.counter[uav] >= self.n_offset):
+                    # Para evitar desbordamientos si nos vienen muchos datos:
+                    self.counter[uav] = self.n_offset
+                    lof = nb.LocalOutlierFactor()
+                    wrong_values = lof.fit_predict(self.cache[uav])
+                    outlier_index = np.where(wrong_values == -1)
+                    self.cache[uav].iloc[outlier_index, ] = np.nan
+                    if(np.size(outlier_index) > 0):
+                        self.cache[uav] = self.cache[uav].interpolate()
+                        # self.msg_mod tiene que ser el último elemento del DF
+                        # y hay que eliminar el primer elemento del DF.
+                        content = list(self.cache[uav].iloc[-1])
+                        self.msg_mod[uav].payload['Lat'] = content[0]
+                        self.msg_mod[uav].payload['Lon'] = content[1]
+                        self.msg_mod[uav].payload['Depth'] = content[2]
+                        self.msg_mod[uav].payload['DetB'] = content[4]
+                        self.msg_mod[uav].payload['DetBb'] = content[5]
+                        # Quitamos el primer elemento de la cache:
+                        self.cache[uav].drop(index=self.cache[uav].index[0], axis=0, inplace=True)
+                super().activate()
 
 
 class FogDb(Atomic):
@@ -163,17 +177,23 @@ class FogDb(Atomic):
 class FogServer(Coupled):
     """Clase acoplada FogServer."""
 
-    def __init__(self, name, n_offset=100):
+    def __init__(self, name, n_uvs=1, n_offset=100):
         """Inicialización de atributos."""
         super().__init__(name)
-        self.i_fusion_01 = Port(Event, "i_fusion_01")
-        self.add_in_port(self.i_fusion_01)
-        hub = FogHub("FogHub_01", n_offset)
-        db = FogDb("FogDb_01")
+        for i in range(1, n_uvs+1):
+            port_name = "i_fusion_" + str(i)
+            self.add_in_port(Port(Event, port_name))
+        hub = FogHub("FogHub", n_uvs, n_offset)
+        db = FogDb("FogDb", n_uvs, n_offset)
         self.add_component(hub)
         self.add_component(db)
-        # EIC
-        self.add_coupling(self.i_fusion_01, hub.i_fusion_01)
-        # IC
-        self.add_coupling(hub.o_fusion_01_raw, db.i_fusion_01_raw)
-        self.add_coupling(hub.o_fusion_01_mod, db.i_fusion_01_mod)
+        for i in range(1, n_uvs+1):
+            port_suf = "fusion_" + str(i)
+            # EIC
+            self.add_coupling(self.in_ports["i_" + port_suf],
+                              hub.in_ports["i_" + port_suf])
+            # IC
+            self.add_coupling(hub.out_ports["o_" + port_suf + "_raw"],
+                              db.in_ports["i_" + port_suf + "_raw"])
+            self.add_coupling(hub.out_ports["o_" + port_suf + "_mod"],
+                              db.in_ports["i_" + port_suf + "_mod"])

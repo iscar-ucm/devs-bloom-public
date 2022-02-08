@@ -1,4 +1,13 @@
-"""Fichero que implementa las clases principales para la capa Fog."""
+"""
+Fichero que implementa las clases principales para la capa Fog.
+
+TODO: Hay un margen de mejora. El Cloud guarda datos de n_offset en n_offset,
+lo que significa que el remanente final no queda guardado. Hay que modificar
+esta clase para que guarde el remanente de datos final. Una forma sería enviar
+una señal stop cuando la simulación termina, de forma que la función de
+transición externa de FogDb, al detectar este final, guarde los datos
+remanentes.
+"""
 
 import pandas as pd
 import numpy as np

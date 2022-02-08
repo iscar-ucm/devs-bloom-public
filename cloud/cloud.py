@@ -1,8 +1,8 @@
 """
 Fichero que implementa las clases principales de la capa Cloud.
 
-De momento, implementamos la capa Cloud como un modelo atómico.
-En el futuro tendremos que considerarlo como un modelo acoplado.
+De momento, implementamos la capa Cloud como un modelo atómico.  En el futuro
+tendremos que considerarlo como un modelo acoplado.
 """
 
 import pandas as pd

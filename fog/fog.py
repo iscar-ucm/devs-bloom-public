@@ -152,8 +152,8 @@ class FogDb(Atomic):
                                                      "Lat", "Lon",
                                                      "Depth", "DetB",
                                                      "DetBb"])
-            self.pathraw[uav] = "data/" + uav + "_" + time_mark + "_raw"
-            self.pathmod[uav] = "data/" + uav + "_" + time_mark + "_mod"
+            self.pathraw[uav] = "data/" + self.parent.name + "." + uav + "_" + time_mark + "_raw"
+            self.pathmod[uav] = "data/" + self.parent.name + "." + uav + "_" + time_mark + "_mod"
             # Los datos raw y mod deben venir a la vez, por lo que
             # solo hay un contador.
             self.counter[uav] = 0

@@ -68,8 +68,10 @@ class Cloud(Atomic):
             body = "body_" + str(i)
             port = self.get_in_port("i_" + body + "_raw")
             if(port.empty() is False):
-                self.dfs_raw[body] = self.dfs_raw[body].append(port.get(), ignore_index=True)
+                for item in port.values:
+                    self.dfs_raw[body] = self.dfs_raw[body].append(item, ignore_index=True)
             port = self.get_in_port("i_" + body + "_mod")
             if(port.empty() is False):
-                self.dfs_mod[body] = self.dfs_mod[body].append(port.get(), ignore_index=True)
+                for item in port.values:
+                    self.dfs_mod[body] = self.dfs_mod[body].append(item, ignore_index=True)
         super().passivate()

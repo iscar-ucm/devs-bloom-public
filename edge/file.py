@@ -10,8 +10,8 @@ from typing import Any
 import pandas as pd
 import datetime as dt
 
-from site import addsitedir   #Para añadir la ruta del proyecto
-addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom") 
+#from site import addsitedir   #Para añadir la ruta del proyecto
+#addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom") 
 from util.event import Event,DataEventId
 
 class FileIn(Atomic):
@@ -69,7 +69,7 @@ class FileIn(Atomic):
 
 
 class FileOut(Atomic):
-  '''A model to store datatime-value-PosX-PosY-PosZ messages on datafile if save=True'''
+  '''A model to store datatime-value-... messages on datafile if save=True'''
   def __init__(self, name, datafile=[],save=True,log=False):       
     super().__init__(name)
     self.save=save

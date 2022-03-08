@@ -166,6 +166,76 @@ class Model_03(Coupled):
         self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
                           cloud.get_in_port("i_body_2_mod"))
 
+class Model_04(Coupled):
+    """Clase que implementa un 2 masas de agua
+    Body1 con UAV11
+    Body2 con UAV21 y UAV22"""
+
+    def __init__(self, name, start, day, log=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # FOG SEVER 1: Masa de agua 1
+        fog1 = FogServer("FogServer1", n_uav=1)
+        # UAV 1
+        ship11 = FileIn("ShipPos11", "data/B1S1LatLon"+day+".xlsx",
+                        start=start, dataid=DataEventId.POS3D, log=log)
+        bloom11 = FileIn("DetBlo11", "data/B1S1DetBloom"+day+".xlsx",
+                         start=start, dataid=DataEventId.BLOOM, log=log)
+        fusion11 = FussionPosBloom("EdgeFussion11")
+        
+        # FOG SEVER 2: Masa de agua 2
+        fog2 = FogServer("FogServer2", n_uav=2)
+        # UAV 21
+        ship21 = FileIn("ShipPos21", "data/B2S1LatLon"+day+".xlsx",
+                        start=start, dataid=DataEventId.POS3D, log=log)
+        bloom21 = FileIn("DetBlo21", "data/B2S1DetBloom"+day+".xlsx",
+                         start=start, dataid=DataEventId.BLOOM, log=log)
+        fusion21 = FussionPosBloom("EdgeFussion21")
+         # UAV 22
+        ship22 = FileIn("ShipPos22", "data/B2S2LatLon"+day+".xlsx",
+                        start=start, dataid=DataEventId.POS3D, log=log)
+        bloom22 = FileIn("DetBlo22", "data/B2S2DetBloom"+day+".xlsx",
+                         start=start, dataid=DataEventId.BLOOM, log=log)
+        fusion22 = FussionPosBloom("EdgeFussion22")
+       
+        # Capa Cloud:
+        cloud = Cloud("Cloud", num_water_bodies=2)
+        
+        self.add_component(fog1)
+        self.add_component(ship11)
+        self.add_component(bloom11)
+        self.add_component(fusion11)
+        self.add_component(fog2)
+        self.add_component(ship21)
+        self.add_component(bloom21)
+        self.add_component(fusion21)
+        self.add_component(ship22)
+        self.add_component(bloom22)
+        self.add_component(fusion22)
+        self.add_component(cloud)
+        self.add_coupling(ship11.o_out, fusion11.i_Pos)
+        self.add_coupling(bloom11.o_out, fusion11.i_Blo)
+        self.add_coupling(ship21.o_out, fusion21.i_Pos)
+        self.add_coupling(bloom21.o_out, fusion21.i_Blo)
+        self.add_coupling(ship22.o_out, fusion22.i_Pos)
+        self.add_coupling(bloom22.o_out, fusion22.i_Blo)
+        self.add_coupling(fusion11.o_out, fog1.get_in_port("i_fusion_1"))
+        self.add_coupling(fusion21.o_out, fog2.get_in_port("i_fusion_1"))
+        self.add_coupling(fusion22.o_out, fog2.get_in_port("i_fusion_2"))
+        self.add_coupling(fog1.get_out_port("o_fusion_1_raw"),
+                          cloud.get_in_port("i_body_1_raw"))
+        self.add_coupling(fog1.get_out_port("o_fusion_1_mod"),
+                          cloud.get_in_port("i_body_1_mod"))
+        self.add_coupling(fog2.get_out_port("o_fusion_1_raw"),
+                          cloud.get_in_port("i_body_2_raw"))
+        self.add_coupling(fog2.get_out_port("o_fusion_1_mod"),
+                          cloud.get_in_port("i_body_2_mod"))
+        self.add_coupling(fog2.get_out_port("o_fusion_2_raw"),
+                          cloud.get_in_port("i_body_2_raw"))
+        self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
+                          cloud.get_in_port("i_body_2_mod"))
+    
+    
 
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
@@ -200,6 +270,18 @@ def test_03():
     end_dt = dt.datetime(2021, 8, 2, 0, 0, 0)
     sim_seconds = (end_dt-start_dt).total_seconds()
     coupled = Model_03("day_" + day, start=start_dt, day=day, log=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate_time(sim_seconds)
+    coord.exit()
+
+def test_04():
+    """Comprobamos el funcionamiento de alguno de los modelos."""
+    day = "20210801"
+    start_dt = dt.datetime(2021, 8, 1, 0, 0, 0)
+    end_dt = dt.datetime(2021, 8, 2, 0, 0, 0)
+    sim_seconds = (end_dt-start_dt).total_seconds()
+    coupled = Model_04("day_" + day, start=start_dt, day=day, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate_time(sim_seconds)

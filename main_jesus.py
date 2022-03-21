@@ -1,3 +1,3 @@
-import edge.uav
+import edge.usv
 
-edge.uav.test()
+edge.usv.test()

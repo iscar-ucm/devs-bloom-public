@@ -14,10 +14,19 @@ class Event:
 class DataEventId(Enum):
   '''Allowed data events'''
   POS3D = "position"
-  LATLON ="latlon"
-  DEPTH="depth"
+  LATLON = "latlon"
+  DEPTH = "depth"
   TEMP = "temperature"
-  SUN="sun"
-  BLOOM="bloom"
+  SUN = "sun"
+  BLOOM = "bloom"
   POSBLOOM = "position&bloom"
-  DEFAULT="default"
+  DEFAULT = "default"
+  MEASUREMENT = "measurement"
+  COMMAND = "command"
+
+
+class EnergyEventId(Enum):
+  '''Allowed energy events'''
+  POWER_ON = "power_on"
+  POWER_OFF = "power_off"
+  POWER_DEMAND = "power_demand"

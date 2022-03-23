@@ -13,6 +13,8 @@ class Event:
 
 class DataEventId(Enum):
   '''Allowed data events'''
+  OXIGEN="WQ_O"
+  NITROGEN="WQ_N"
   POS3D = "position"
   LATLON = "latlon"
   DEPTH = "depth"

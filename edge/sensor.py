@@ -7,15 +7,15 @@ logger = get_logger(__name__, logging.INFO)
 
 from typing import Any
 import datetime as dt
-from file import FileIn,FileOut
-from body import SimBody
 
 PHASE_ON = "on"           #Taking a measurement
 PHASE_OFF = "off"         #Wating a resquet
 
 from site import addsitedir   #Para poder realizar pruebas en el directorio.
-addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom") 
+addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1") 
 
+from edge.file import FileIn,FileOut
+from edge.body import SimBody
 from util.event import Event,DataEventId
 
 
@@ -31,9 +31,7 @@ class SimSensor(Atomic):
     #Simulated Body in NetHFC4 format
     self.simbody=simbody
     self.delay=delay                    #The measurement takes delay seconds. 
-    
-    
-
+  
   def initialize(self):
     # Wait for a resquet
     self.passivate()
@@ -48,23 +46,20 @@ class SimSensor(Atomic):
 
   def deltext(self, e: Any):
     self.hold_in(PHASE_ON, self.delay)  #1 minute to read the signals
-    #Conseguir (t,lat,lon,depth)
-    #Lectura desde el fichero de los datos
-    #columns=["Id","Source","DateTime","PayLoad"]
-    #content=[msg.id,msg.source,msg.timestamp,msg.payload]
     msg = self.i_in.get()
 
-    #myt=50  #Indice del tiempo de prueba    
+    
     #ACOPLO CON NUESTRO TIEMPO DE SIMULACIÓN
+    #Hago coincidir el inicio de la Simulación con el inicio de SimBody
     simtime=msg.timestamp-dt.datetime(2021,8,1,0,0,0)
     fdays=simtime.seconds/(24.0*60.0*60.0)
     times=self.simbody.vars['time']
-    times0=times-times[0]
+    times0=times-times[0]     
     ind=0                     #Indice de tiempo
-    while times0[ind]<fdays: #Busco el siguiente tiempo
+    while times0[ind]<fdays:  #Busco el siguiente tiempo
       ind=ind+1
     myt=ind
-
+    #myt=50  #Indice del tiempo de prueba    
     self.myvar=msg.id
     #Asumimos que la profundidad es layer. Realmente habrá que hacer alguna corrección con Sigma.
     mylayer=round(msg.payload['Depth'])
@@ -84,15 +79,17 @@ class SimSensor(Atomic):
       #logger.info(msg)
 
 
-
-
 class Test1(Coupled):
-  '''Un ejemplo acoplado que pide datos a SensorSim'''
-
+  '''Ejemplo acoplado que:
+    *desde un fichero pide TM de O2 a SimSensor
+    *SimSensor lee las TM de O2 desde un SimBody
+    *SimSensor genera la TM deO2 60s más tarde
+    *La TM de O2 se guardan en un fichero con t,lat,lon,dep
+  '''
   def __init__(self, name, simbody, start, log=False):
     super().__init__(name)
-    AskSensor = FileIn("AskMeasurement", './data/LatLonDep.xlsx',start=start, dataid=DataEventId.NITROGEN, log=log)
-    #AskSensor = FileIn("AskO&N", './data/LatLonDepWQ_O.xlsx',start=start, dataid=DataEventId.OXIGEN, log=log)   
+    #AskSensor = FileIn("AskMeasurement", './data/LatLonDep.xlsx',start=start, dataid=DataEventId.NITROGEN, log=log)
+    AskSensor = FileIn("AskO&N", './data/LatLonDep.xlsx',start=start, dataid=DataEventId.OXIGEN, log=log)   
     Sensor = SimSensor("SimulatedSensor", simbody, delay=60, log=log)     
     Outfile = FileOut("FileOutSimSen", './data/FileOutSensor.xlsx', log=log)     
     self.add_component(AskSensor)
@@ -109,7 +106,8 @@ if __name__ == "__main__":
   simseconds=(enddt-startdt).total_seconds()
   
   print('Cargando BodySim')
-  bodyfile = './data/Washington-1d-2008-09-12_compr.nc'
+  bodyfile = './body/Washington-1d-2008-09-12_compr.nc'
+  #bodyfile= 'D:/Unidades compartidas/ia-ges-bloom-cm/IoT/Washington-1d-2008-09-12_compr.nc'
   vars=('WQ_O','WQ_N')
   simbody=SimBody('SimWater',bodyfile,vars)
   

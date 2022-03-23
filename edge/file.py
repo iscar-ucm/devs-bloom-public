@@ -10,8 +10,8 @@ from typing import Any
 import pandas as pd
 import datetime as dt
 
-#from site import addsitedir   #Para añadir la ruta del proyecto
-#addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom") 
+from site import addsitedir   #Para añadir la ruta del proyecto
+addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1") 
 from util.event import Event,DataEventId
 
 class FileIn(Atomic):

@@ -7,6 +7,7 @@ class Event:
   '''A message to model events'''
   id: str
   source: str
+  target: str = field(default=None)
   timestamp: dt.datetime = field(default_factory=dt.datetime.now)
   payload: dict = field(default_factory=dict)
 

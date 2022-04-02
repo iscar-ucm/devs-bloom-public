@@ -94,19 +94,19 @@ class FileOut(Atomic):
     pass
    
   def deltext(self, e: Any):
-    msg = self.i_in.get()
-    if self.save==True:
-      items=msg.payload.items()
-      columns=["Id","Source","DateTime","PayLoad"]
-      content=[msg.id,msg.source,msg.timestamp,msg.payload]
-      for it in items:
-        columns.append(it[0])
-        content.append(it[1])
-      newdata =pd.DataFrame(content,columns)
-      self.data=self.data.append(newdata.T,ignore_index=True)
-    
-    if self.log==True: 
-        logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)
+    for msg in self.i_in.values:
+      if self.save==True:
+        items=msg.payload.items()
+        columns=["Id","Source","DateTime","PayLoad"]
+        content=[msg.id,msg.source,msg.timestamp,msg.payload]
+        for it in items:
+          columns.append(it[0])
+          content.append(it[1])
+        newdata =pd.DataFrame(content,columns)
+        self.data=self.data.append(newdata.T,ignore_index=True)
+      
+      if self.log==True: 
+          logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)
 	
     self.continuef(e)
   

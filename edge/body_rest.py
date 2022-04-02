@@ -56,16 +56,15 @@ simbody = SimBody('SimWater', bodyfile, vars)
 def sensor():
   try:
     data = request.get_json()
-    print(data)
     measure = [data['payload'][k] for k in ('var', 'time', 'lat', 'lon', 'depth')]
     measurement = data['payload'].copy()
     measurement.update({
       data['payload']['var']: simbody.readvar(*measure)
     })
     result = jsonify(measurement)
-    print(measurement)
   except Exception as e:
     print(e)
+    print(measurement)
     result = jsonify(error='invalid params')
   return result
 

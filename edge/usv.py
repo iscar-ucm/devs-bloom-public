@@ -1,16 +1,16 @@
 import datetime as dt
-import math
-from random import random
 import numpy as np
-from scipy.integrate import solve_ivp
 import requests
-
-from edge.file import FileOut
 from xdevs.models import Atomic, Port, Coupled
 from xdevs.sim import Coordinator
 from util.event import EnergyEventId, DataEventId, Event
 from pyproj import Transformer, CRS
-from edge.usv_controllers import USVController, USVPurePursuitController
+from edge.file import FileOut
+from edge.usv_power import PoweredComponent, PowerControlUnit
+from edge.usv_control import USVController, USVPurePursuitController
+from edge.usv_sensors import PoweredSimSensor
+from edge.usv_comms import GenericCommunicationModule
+from edge.usv_actuators import ContinuousModel
 
 PHASE_ON = "on"
 PHASE_OFF = "off"
@@ -21,250 +21,16 @@ PHASE_STARTING = "starting"
 PHASE_STOPPING = "stopping"
 PHASE_UPDATE = "update"
 
-class PoweredComponent(Atomic):
-  '''A base class for components that consume energy'''
-
-  def __init__(self, name: str, period:float=1, mA: float=10,
-               start_time: dt.datetime=dt.datetime.now(), debug: bool=False):
-    super().__init__(name)
-    self.i_pwr = Port(Event, "i_pwr")
-    self.o_pwr = Port(Event, "o_pwr")
-    self.i_data = Port(Event, "i_data")
-    self.o_data = Port(Event, "o_data")
-    self.add_in_port(self.i_pwr)
-    self.add_out_port(self.o_pwr)
-    self.add_in_port(self.i_data)
-    self.add_out_port(self.o_data)
-    self.period = period
-    self.clock = start_time
-    self.start_time = start_time
-    self.debug = debug
-    self.mA = mA
-    self.mAh = mA*self.period/3600
-
-  def initialize(self) -> None:
-    self.passivate(PHASE_OFF)
-
-  def exit(self) -> None:
-    pass
-		
-  def deltint(self) -> None:
-    self.clock += dt.timedelta(seconds=self.sigma)
-    self.hold_in(PHASE_ON, self.period)
-
-  def deltext(self, e: float) -> None:
-    self.continuef(e)
-    self.clock += dt.timedelta(seconds=e)
-    if self.i_pwr:
-      msg = self.i_pwr.get()
-      if msg.id == EnergyEventId.POWER_ON:
-        print(f'POWER ON: {self.name}')
-        self.hold_in(PHASE_ON, self.period)
-      elif msg.id == EnergyEventId.POWER_OFF:
-        print(f'POWER OFF: {self.name}')
-        self.passivate(PHASE_OFF)
-	
-  def lambdaf(self) -> None:
-    energy = Event(
-      id=EnergyEventId.POWER_DEMAND,
-      source=f'{self.name}',
-      timestamp=self.clock,
-      payload={ 'mAh': [self.mAh] }
-    )
-    self.o_pwr.add(energy)
-
-
-class PowerControlUnit(Atomic):
-  '''A model of a basic energy supply module'''
-
-  def __init__(self, name: str, mAh: float=10000, period: float=30):
-    super().__init__(name)
-    self.mAh_left = mAh
-    self.i_pwr = Port(Event, "i_pwr")
-    self.o_pwr = Port(Event, "o_pwr")
-    self.i_data = Port(Event, "i_data")
-    self.o_data = Port(Event, "o_data")
-    self.add_in_port(self.i_pwr)
-    self.add_out_port(self.o_pwr)
-    self.add_in_port(self.i_data)
-    self.add_out_port(self.o_data)
-    self.period = period
-    self.clock = dt.datetime.now()
-
-  def initialize(self) -> None:
-    self.hold_in(PHASE_STARTING, 0)
-
-  def exit(self) -> None:
-    pass
-		
-  def deltint(self) -> None:
-    self.clock += dt.timedelta(seconds=self.sigma)
-    if self.phase == PHASE_STOPPING:
-      self.passivate(PHASE_OFF)
-    elif self.phase in [PHASE_STARTING, PHASE_ON]:
-      self.hold_in(PHASE_ON, self.period)
-
-  def deltext(self, e: float) -> None:
-    self.continuef(e)
-    self.clock += dt.timedelta(seconds=e)
-    msg = self.i_pwr.get()
-    if self.phase == PHASE_ON:
-      if msg.id == EnergyEventId.POWER_DEMAND:
-        if self.mAh_left <= msg.payload['mAh'][0]:
-          self.mAh_left = 0
-          self.activate(PHASE_STOPPING)
-          return
-        self.mAh_left -= msg.payload['mAh'][0]
-
-  def lambdaf(self) -> None:
-    if self.phase == PHASE_STARTING:
-      self.o_pwr.add(Event(
-        id=EnergyEventId.POWER_ON,
-        source=f'{self.name}',
-        timestamp=self.clock,
-      ))
-      print(f'POWER ON: {self.name}')
-    elif self.phase == PHASE_ON:
-      self.o_data.add(Event(
-        id=DataEventId.MEASUREMENT,
-        source=f'{self.name}',
-        timestamp=self.clock,
-        payload={ 'mAh': [self.mAh_left] }
-      ))
-    elif self.phase == PHASE_STOPPING:
-      print(f'POWER OFF: {self.name}')
-      self.o_pwr.add(Event(
-        id=EnergyEventId.POWER_OFF,
-        source=f'{self.name}',
-        timestamp=self.clock,
-    ))
-
-
-class PoweredSensor(PoweredComponent):
-  '''A model of a basic sensor that yields a measurement consuming some energy'''
-
-  def __init__(self, name, period=10, mA=2.0e-6, debug: bool=False):
-    super().__init__(name, period=period, mA=mA, debug=debug)
-
-  def lambdaf(self) -> None:
-    measurement = Event(
-      id=DataEventId.MEASUREMENT,
-      source=f'{self.name}',
-      timestamp=self.clock,
-      payload={ 'temperature': [random()] }
-    )
-    self.o_data.add(measurement)
-    if self.debug:
-      print(f'SENSOR: {self.clock}->{measurement}')
-
-
-class PoweredSimSensor(PoweredComponent):
-  '''A simulated sensor that reads variables from a file with simulated data.'''
-
-  def __init__(self, name: str, body, period: float=1, mA: float=10,
-               start_time: dt.datetime=dt.datetime.now()):
-    super().__init__(name, period=period, mA=mA, start_time=start_time)
-    self.body = body
-    self.buffer = []
-    self.delay = 0
-
-  def deltint(self) -> None:
-    self.clock += dt.timedelta(seconds=self.sigma)
-    if self.phase == PHASE_MEASURING:
-      self.passivate(PHASE_ON)
-
-  def deltext(self, e: float) -> None:
-    super().deltext(e)
-    if self.phase == PHASE_MEASURING or self.phase == PHASE_ON:
-      for msg in self.i_data.values:
-        if msg.target != self.name: continue
-        self.buffer.append([
-          msg.payload['var'],
-          msg.payload['time'],
-          msg.payload['lat'],
-          msg.payload['lon'],
-          msg.payload['depth'],
-        ])
-        self.hold_in(PHASE_MEASURING, self.delay)
- 
-  def lambdaf(self) -> None:
-    energy = Event(
-      id=EnergyEventId.POWER_DEMAND,
-      source=f'{self.name}',
-      timestamp=self.clock,
-      payload={ 'mAh': [self.mAh] }
-    )
-    if len(self.buffer):
-      info = self.buffer.pop(0)
-      measurement = Event(
-        id=DataEventId.MEASUREMENT,
-        source=f'{self.name}',
-        timestamp=self.clock,
-        payload=self.body.readvar(*info),
-      )
-      self.o_pwr.add(energy)
-      self.o_data.add(measurement)
-
-
-class GenericCommunicationModule(PoweredComponent):
-  '''A model of a generic communication module that can transmit/receive data'''
-
-  def __init__(self, name, period: float=1, mA: float=100, debug: bool=False):
-    super().__init__(name, period=period, mA=mA, debug=debug)
-    self.i_rx = Port(Event, "i_rx")
-    self.o_tx = Port(Event, "o_tx")
-    self.add_in_port(self.i_rx)
-    self.add_out_port(self.o_tx)
-    self.input_buffer = []
-    self.data_buffer = []
-    self.transmit_mA = 100
-    self.transmit_delay_ms = 10
-
-  def deltint(self) -> None:
-    self.clock += dt.timedelta(seconds=self.sigma)
-    if len(self.input_buffer) > 0:
-      self.hold_in(PHASE_TRANSMIT, self.transmit_delay_ms/1000)
-    else:
-      self.passivate(PHASE_ON)
-
-  def deltext(self, e: float) -> None:
-    super().deltext(e)
-    if self.i_data:
-      for msg in self.i_data.values:
-        self.input_buffer.append(msg)
-      if self.phase != PHASE_OFF:
-        self.hold_in(PHASE_TRANSMIT, self.transmit_delay_ms/1000)
-    if self.i_rx:
-      msg = self.i_rx.get()
-      self.data_buffer.append(msg)
-      print(f'USV receives: {self.clock} -> {msg.source} - {msg.payload}')
-
-  def lambdaf(self) -> None:
-    for m in self.data_buffer:
-      self.o_data.add(m)
-    self.data_buffer.clear()
-    if self.phase == PHASE_TRANSMIT:
-      msg = self.input_buffer.pop(0)
-      if self.debug:
-        print(f'USV sends: {self.clock} -> {msg.source} - {msg.payload}')
-      self.o_tx.add(msg)
-      self.o_pwr.add(Event(
-        id=EnergyEventId.POWER_DEMAND,
-        source=f'{self.name}',
-        timestamp=self.clock,
-        payload={ 'mAh': [self.mAh] }
-      ))
-
 
 class Processor(PoweredComponent):
   '''A model of a component that can process incoming data and generate clean/processed data'''
 
   def __init__(self, name: str, period: float=1.0, debug: bool=False, 
-      controller: USVController=USVPurePursuitController()) -> None:
+      controller: USVController=None) -> None:
     super().__init__(name, period=period, debug=debug)
     self.input_buffer = []
     self.output_buffer = []
-    self.controller = controller
+    self.controller = USVPurePursuitController() if not controller else controller
     self.P0_SANTILLANA = (40.706421, -3.87) # Embalse de Santillana
     self.P0_WASHINGTON = (47.58, -122.27) # Embalse de Washington
     crs = CRS.from_epsg(3857)
@@ -277,6 +43,7 @@ class Processor(PoweredComponent):
     self.energy = []
     self.iter = 0
     self.mA = 10
+    self.prefix = ''
 
   def deltint(self) -> None:
     self.clock += dt.timedelta(seconds=self.sigma)
@@ -311,13 +78,13 @@ class Processor(PoweredComponent):
     for msg in self.i_data.values:
       if msg.id == DataEventId.MEASUREMENT:
         self.input_buffer.append(msg)
-        if msg.source == 'IMU':
+        if msg.source == self.toFullName('IMU'):
           self.x = msg.payload['position']
           self.controller.update_position(self.x)
           self.hold_in(PHASE_UPDATE, 0.0)
-        if msg.source == 'sim_sensor':
+        if msg.source == self.toFullName('sim_sensor'):
           self.measurements.append(msg.payload)
-        if msg.source == 'pcu':
+        if msg.source == self.toFullName('pcu'):
           self.energy.append(msg)
       if msg.id == DataEventId.COMMAND and 'waypoint' in msg.payload:
         self.controller.add_waypoints(msg.payload['waypoint'])
@@ -327,7 +94,7 @@ class Processor(PoweredComponent):
   def lambdaf(self) -> None:
     energy = Event(
       id=EnergyEventId.POWER_DEMAND,
-      source=f'{self.name}',
+      source=self.toFullName(self.name),
       timestamp=self.clock,
       payload={ 'mAh': [self.mA*self.period/3600] }
     )
@@ -346,9 +113,9 @@ class Processor(PoweredComponent):
     time = int(self.clock.timestamp() - self.start_time.timestamp())
     self.o_data.add(Event(
       id=DataEventId.MEASUREMENT,
-      source=f'{self.name}',
+      source=self.name,
       timestamp=self.clock,
-      target='sim_sensor',
+      target=self.toFullName('sim_sensor'),
       payload={
         'var': var,
         'time': time,
@@ -361,8 +128,8 @@ class Processor(PoweredComponent):
   def send_control(self) -> None:
     command = Event(
       id=DataEventId.COMMAND,
-      source=f'{self.name}',
-      target='IMU',
+      source=self.name,
+      target=self.toFullName('IMU'),
       timestamp=self.clock,
       payload={ 'u': self.u }
     )
@@ -372,8 +139,8 @@ class Processor(PoweredComponent):
     (lat, lon) = self.toGeodetic.transform(*(self.origin + self.x[0:2]))
     measurement = Event(
       id=DataEventId.MEASUREMENT,
-      source=f'IMU',
-      target='comms',
+      source=self.toFullName('IMU'),
+      target=self.toFullName('generic_comms'),
       timestamp=self.clock,
       payload={ 'position': self.x, 'lat': lat, 'lon': lon }
     )
@@ -383,8 +150,8 @@ class Processor(PoweredComponent):
     for m in self.measurements:
       self.o_data.add(Event(
         id=DataEventId.MEASUREMENT,
-        source='sim_sensor',
-        target='comms',
+        source=self.toFullName('sim_sensor'),
+        target=self.toFullName('generic_comms'),
         timestamp=self.clock,
         payload=m
       ))
@@ -392,213 +159,146 @@ class Processor(PoweredComponent):
 
   def send_energy(self) -> None:
     for msg in self.energy:
-      msg.target = 'comms'
+      msg.target = self.toFullName('generic_comms')
       self.o_data.add(msg)
     self.energy.clear()
 
+  def toFullName(self, name):
+    return f'{self.prefix}.{name}' if self.prefix else name
 
-class ContinuousModel(Atomic):
+  def setPrefix(self, prefix):
+    self.prefix = prefix
 
-  def __init__(self, name: str, period: float=1,
-                initial: np.array=np.array((0, 0, 0))) -> None:
-    super().__init__(name)
-    self.i_pwr = Port(Event, "i_pwr")
-    self.o_pwr = Port(Event, "o_pwr")
-    self.i_data = Port(Event, "i_data")
-    self.o_data = Port(Event, "o_data")
-    self.add_in_port(self.i_pwr)
-    self.add_out_port(self.o_pwr)
-    self.add_in_port(self.i_data)
-    self.add_out_port(self.o_data)
-    self.period = period
-    self.clock = dt.datetime.now()
-    self.x = initial
-    self.power = 10 # W
-    self.mA = 1000
-    self.u = [0, 0]
-
-  def differential(t) -> np.array:
-    def rates(t, x, u):
-      return [
-        -u[0]*math.sin(x[2]),
-        u[0]*math.cos(x[2]),
-        u[1],
-      ]
-    return rates
-
-  def f(self, t, x) -> np.array:
-    u = self.u(x)
-    def rates(t, x):
-      return [ # x: [x, y, phi, vx, vy, r]
-        x[3],
-        x[4],
-        x[5],
-        -u[0]*math.sin(x[2]),
-        u[0]*math.cos(x[2]),
-        u[1]
-      ]
-    return rates
-
-  def initialize(self) -> None:
-    self.passivate(PHASE_OFF)
-
-  def deltint(self) -> None:
-    self.clock += dt.timedelta(seconds=self.sigma)
-    if self.phase == PHASE_OFF:
-      return
-    elif self.phase == PHASE_UPDATE:
-      self.x = self.nextstep()
-      self.hold_in(PHASE_TRANSMIT, 0)
-    elif self.phase == PHASE_TRANSMIT:
-      self.hold_in(PHASE_ON, self.period)
-    elif self.phase == PHASE_ON:
-      self.hold_in(PHASE_UPDATE, 0)
-      return
-
-  def nextstep(self) -> None:
-    '''Integrates the USV dynamics within one period'''
-    t = self.clock.timestamp()
-    sol = solve_ivp(self.differential(), [t, t+self.period], self.x, args=(self.u,))
-    return sol.y[:,-1]
-
-  def deltext(self, e: float) -> None:
-    self.continuef(e)
-    self.clock += dt.timedelta(seconds=e)
-    if self.i_pwr:
-      msg = self.i_pwr.get()
-      if msg.id == EnergyEventId.POWER_ON:
-        print(f'POWER ON: {self.name}')
-        self.hold_in(PHASE_ON, self.period)
-      elif msg.id == EnergyEventId.POWER_OFF:
-        print(f'POWER OFF: {self.name}')
-        self.passivate(PHASE_OFF)
-
-    if self.i_data:
-      for msg in self.i_data.values:
-        if msg.id == DataEventId.COMMAND and 'u' in msg.payload:
-          self.u = msg.payload['u']
-
-  def exit(self) -> None:
-    pass
-
-  def lambdaf(self) -> None:
-    if self.phase == PHASE_TRANSMIT:
-      energy = Event(
-        id=EnergyEventId.POWER_DEMAND,
-        source=f'{self.name}',
-        timestamp=self.clock,
-        payload={ 'mAh': [self.mA*2*self.u[0]*self.period/3600] }
-      )
-      measurement = Event(
-        id=DataEventId.MEASUREMENT,
-        source=f'{self.name}',
-        timestamp=self.clock,
-        payload={ 'position': self.x }
-      )
-      self.o_pwr.add(energy)
-      self.o_data.add(measurement)
-  
 
 class USV(Coupled):
   '''A coupled model of a USV'''
 
-  def __init__(self, name: str, period: float=1, body=None, 
-                initial: np.array=np.array((0, 0, 0))):
+  def __init__(self, name: str, period: float=1):
     super().__init__(name)
 
     if period <= 0:
       raise ValueError("period has to be greater than 0")
 
-    self.pcu = PowerControlUnit("pcu", mAh=20000, period=10*period)
-    sensor = PoweredSimSensor("sim_sensor", body, period=30*period)
-    processor = Processor("processor", period=1*period)
-    comms = GenericCommunicationModule("generic_comms")
-    model = ContinuousModel("IMU", period=1, initial=initial)
-    # Components
-    self.add_component(self.pcu)
-    self.add_powered_component(comms)
-    self.add_powered_component(processor)
-    self.add_powered_component(sensor)
-    self.add_powered_component(model)
-    # Wiring
-    self.add_coupling(sensor.o_data, processor.i_data)
-    self.add_coupling(self.pcu.o_data, processor.i_data)
-    self.add_coupling(model.o_data, processor.i_data)
-    self.add_coupling(processor.o_data, sensor.i_data)
-    self.add_coupling(processor.o_data, model.i_data)
-    # processor - comms
-    self.add_coupling(comms.o_data, processor.i_data)
-    self.add_coupling(processor.o_data, comms.i_data)
-    # I/O
-    self.add_in_port(Port(Event, 'i_rx'))
-    self.add_out_port(Port(Event, 'o_tx'))
-    self.add_coupling(self.get_in_port('i_rx'), comms.i_rx)
-    self.add_coupling(comms.o_tx, self.get_out_port('o_tx'))
+    self.sensors = []
+    self.actuators = []
+    self.comms = []
+ 
+  def add_power_control_unit(self, pcu):
+    '''Add a Power Control Unit (PCU)
+    
+      The PCU is the component responsible of handling the power supply of the USV,
+      including, but not limited to:
+      - Measure and report energy consumption
+      - Enable or disable other components
 
+      The current model only support one PCU, which means that if the USV already 
+      has one it will be replaced.
+    '''
+    self.pcu = pcu
+    self.add_powered_component(pcu)
+
+  def add_processor(self, processor):
+    '''Add a Processor
+    
+      The Processor is the component responsible of doing the onboard computations,
+      which includes, but is not limited to:
+      - USV Guidance
+      - Gather measurements from sensors
+      - Control the actuators
+      - Decide when to communicate
+
+      The current model only support one processor, which means that if the USV already 
+      has one it will be replaced.
+    '''
+    self.processor = processor
+    self.processor.setPrefix(self.name)
+    self.add_powered_component(processor)
+
+  def add_sensor(self, sensor):
+    '''Add a sensor
+    
+      The onboard sensors can measure and report to the processor different magnitudes of interest:
+      - Environmental variables: temperature, PH, oxygen/nitrogen concentration...
+      - Propioceptive variables: USV attitude, component temperatures, ...
+
+      Each sensor is connected to the processor through the bus.
+    '''
+    self.sensors.append(sensor)
+    self.add_powered_component(sensor, connectTo=[self.processor])
+
+  def add_actuator(self, actuator):
+    '''Add an actuator
+    
+      The onboard actuator can propel the USV, control the location of sensors, and so on.
+      Each actuator is connected to the processor through the bus.
+    '''
+    self.actuators.append(actuator)
+    self.add_powered_component(actuator, connectTo=[self.processor])
+
+  def add_comms(self, module):
+    '''Add a communication module
+    
+      The USV has one or more comminucation module such as WiFi, LTE, Ethernet or whatever.
+
+      Each module is connected to the processor through a dedicated bus.
+    '''
+    self.comms.append(module)
+    self.add_powered_component(module, connectTo=[self.processor])
 
   def add_powered_component(self, component: PoweredComponent, connectTo: list=[]) -> None:
-    super().add_component(component)
+    self.add_component(component)
     self.add_coupling(self.pcu.o_pwr, component.i_pwr)
     self.add_coupling(component.o_pwr, self.pcu.i_pwr)
     for c in connectTo:
-      self.add_coupling(component.i_data, c.o_data)
+      print(f'{component}->{c}')
       self.add_coupling(component.o_data, c.i_data)
+      self.add_coupling(c.o_data, component.i_data)
 
 
-# class TestInput(Atomic):
-#   '''A test input generator for a single USV'''
+class USVFactory:
+  '''A factory that creates USV'''
 
-#   def __init__(self, name, end_time):
-#     super().__init__(name)
-#     self.o_data = Port(Event, "o_data")
-#     self.add_out_port(self.o_data)
-#     self.clock = dt.datetime.now()
-#     self.end_time = end_time
-
-#   def initialize(self) -> None:
-#     self.hold_in("send_waypoint", 1)
-
-#   def exit(self) -> None:
-#     pass
-
-#   def deltint(self) -> None:
-#     self.clock += dt.timedelta(seconds=self.sigma)
-#     # if self.clock > self.end_time:
-#     #   self.passivate(PHASE_OFF)
-#     # self.hold_in(PHASE_ON, 1)
-#     self.passivate()
-
-#   def deltext(self, e: float) -> None:
-#     pass
-
-#   def lambdaf(self) -> None:
-#     if self.phase == "send_waypoint":
-#       N = 21
-#       width, height = 1000, 2000
-#       trajectory = [[(width/(N-1))*int((i+1)/2), height*(int((i+2)/2)%2)] for i in range(N)]
-#       self.o_data.add(Event(
-#         id=DataEventId.COMMAND,
-#         source=f'{self.name}',
-#         timestamp=self.clock,
-#         payload={
-#           'waypoint': trajectory,
-#           'set_origin': [47.58, -122.27]
-#         }
-#       ))
+  def create_USV(self, name: str="USV", period: float=1, initial: np.array=np.array((0,0,0)), body =None) -> USV:
+    usv = USV(name)
+    period = 1
+    pcu = PowerControlUnit(f'{name}.pcu', mAh=20000, period=10*period)
+    sensor = PoweredSimSensor(f'{name}.sim_sensor', body, period=30*period)
+    processor = Processor(f'{name}.processor', period=1*period)
+    comms = GenericCommunicationModule(f'{name}.generic_comms', debug=False)
+    model = ContinuousModel(f'{name}.IMU', period=1, initial=initial)
+    # Components
+    usv.add_power_control_unit(pcu)
+    usv.add_processor(processor)
+    usv.add_comms(comms)
+    usv.add_sensor(sensor)
+    usv.add_actuator(model)
+    # I/O
+    usv.add_in_port(Port(Event, 'i_rx'))
+    usv.add_out_port(Port(Event, 'o_tx'))
+    usv.add_coupling(usv.get_in_port('i_rx'), comms.i_rx)
+    usv.add_coupling(comms.o_tx, usv.get_out_port('o_tx'))
+    return usv
 
 
 class TestInput(Atomic):
-  '''A test input generator for two cooperative USV'''
+  '''A test input generator to test USV'''
 
-  def __init__(self, name: str, end_time: dt.datetime, 
-                offset: np.array=np.array((0, 0)), origin: list=(47.58, -122.27)):
+  def __init__(self, name: str, offset: np.array=np.array((0, 0)),
+                origin: list=(47.58, -122.27),
+                trajectory: str='rectangular'):
     super().__init__(name)
     self.o_tx = Port(Event, "o_tx")
     self.add_out_port(self.o_tx)
     self.clock = dt.datetime.now()
-    self.end_time = end_time
     self.origin = origin
     self.offset = offset
+    self.generators = {
+      'triangle': self._generate_triangle,
+      'rectangle': self._generate_rect,
+    }
+    if not trajectory in self.generators:
+      raise ValueError('Invalid trajectory type')
+    self.trajectory = trajectory
 
   def initialize(self) -> None:
     self.hold_in("send_waypoint", 1)
@@ -615,9 +315,8 @@ class TestInput(Atomic):
 
   def lambdaf(self) -> None:
     if self.phase == "send_waypoint":
-      N = 21
-      width, height = 1000, 2000
-      trajectory = [[(width/(N-1))*int((i)/2), height*(int((i+1)/2)%2)] for i in range(N)]
+      N, width, height = 21, 1000, 2000
+      trajectory = self.generators[self.trajectory](N, width, height)
       self.o_tx.add(Event(
         id=DataEventId.COMMAND,
         source=f'{self.name}',
@@ -628,13 +327,24 @@ class TestInput(Atomic):
         }
       ))
 
+  def _generate_triangle(self, N, width, height):
+    return [
+      [i*width/(N-1), height*(i%2)] for i in range(N)
+    ]
 
-class TestUSV(Coupled):
+  def _generate_rect(self, N, width, height):
+    return [
+      [(width/(N-1))*int((i)/2), height*(int((i+1)/2)%2)] for i in range(N)
+    ]
+
+
+
+class TestOneUSV(Coupled):
   '''A coupled model to test an USV coupled model'''
 
-  def __init__(self, name: str, usv: USV) -> None:
+  def __init__(self, name: str, usv: USV, trajectory: str='triangle') -> None:
     super().__init__(name)
-    test_input = TestInput("GCS", end_time=100)
+    test_input = TestInput("GCS", trajectory=trajectory)
     test_output = FileOut("FileOut", './data/USVData.xlsx')
     self.add_component(usv)
     self.add_component(test_input)
@@ -648,11 +358,11 @@ class TestUSV(Coupled):
 class TestTwoUSV(Coupled):
   '''A coupled model to test an USV coupled model'''
 
-  def __init__(self, name: str, usv: list[USV], offset: list) -> None:
+  def __init__(self, name: str, usv: list[USV], offset: list, trajectory: str='triangle') -> None:
     super().__init__(name)
-    test_input1 = TestInput("GCS", end_time=100, offset=offset[0])
-    test_input2 = TestInput("GCS", end_time=100, offset=offset[1])
-    test_output = FileOut("FileOut", './data/USVData.xlsx')
+    test_input1 = TestInput("GCS_1", trajectory=trajectory, offset=offset[0])
+    test_input2 = TestInput("GCS_2", trajectory=trajectory, offset=offset[1])
+    test_output = FileOut("FileOut", './data/TwoUSVData.xlsx')
     self.add_component(test_input1)
     self.add_component(test_input2)
     self.add_component(test_output)
@@ -661,11 +371,12 @@ class TestTwoUSV(Coupled):
     self.add_coupling(test_input1.get_out_port('o_tx'),
                       usv[0].get_in_port('i_rx'))
     self.add_coupling(test_input2.get_out_port('o_tx'),
-                      usv[1].get_in_port('i_rx'))
+                      usv[1].get_in_port('i_rx'))    
     self.add_coupling(usv[0].get_out_port('o_tx'),
                       test_output.get_in_port('i_in'))
     self.add_coupling(usv[1].get_out_port('o_tx'),
                       test_output.get_in_port('i_in'))
+
 
 class RestBody:
 
@@ -686,41 +397,46 @@ class RestBody:
     return requests.post(self.url, json=data).json()
 
 
-def test() -> None:
+def test_one_USV(trajectory: str='triangle') -> None:
   body = RestBody('http://127.0.0.1:5000')
   start_dt = dt.datetime(2021, 8, 1, 0, 0, 0)
   end_dt = dt.datetime(2021, 8, 1, 0, 30, 0)
   sim_seconds = (end_dt - start_dt).total_seconds()
-  usv1 = USV("Red Leader",
+  usv = USVFactory().create_USV(
+    name='Red Leader',
     period=1,
     body=body,
     initial=np.array((-100, 0, 0))
   )
-  coupled = TestUSV("Test USV", usv1)
+  coupled = TestOneUSV("Test USV", usv, trajectory)
   coord = Coordinator(coupled, flatten=True)
   coord.initialize()
   coord.simulate_time(sim_seconds)
   coord.exit()
   
   
-def test_two_USV() -> None:
+def test_two_USV(trajectory: str='triangle') -> None:
   body = RestBody('http://127.0.0.1:5000')
   start_dt = dt.datetime(2021, 8, 1, 0, 0, 0)
-  end_dt = dt.datetime(2021, 8, 1, 4, 0, 0)
+  end_dt = dt.datetime(2021, 8, 1, 0, 30, 0)
   sim_seconds = (end_dt - start_dt).total_seconds()
-  usv1 = USV("Red Leader",
+  builder = USVFactory()
+  usv1 = builder.create_USV(
+    name='Red Leader',
     period=1,
     body=body,
     initial=np.array((-100, 0, 0))
   )
-  usv2 = USV("Red Two",
+  usv2 = builder.create_USV(
+    name='Red Two',
     period=1,
-    body=body, 
-    initial=np.array((900, 0, 0)),
+    body=body,
+    initial=np.array((550, -50, 0))
   )
   coupled = TestTwoUSV("Test USV",
     usv=(usv1, usv2),
-    offset=np.array(((0, 0), (1000, 0)))
+    offset=np.array(((0, 0), (500, 0))),
+    trajectory=trajectory
   )
   coord = Coordinator(coupled, flatten=True)
   coord.initialize()

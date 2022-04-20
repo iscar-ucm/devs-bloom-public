@@ -16,6 +16,7 @@ class DataEventId(Enum):
   '''Allowed data events'''
   OXIGEN="WQ_O"
   NITROGEN="WQ_N"
+  SIMSEN="SimSensor"
   POS3D = "position"
   LATLON = "latlon"
   DEPTH = "depth"
@@ -33,3 +34,8 @@ class EnergyEventId(Enum):
   POWER_ON = "power_on"
   POWER_OFF = "power_off"
   POWER_DEMAND = "power_demand"
+
+class SimSenId(Enum):
+  '''Allowed energy events'''
+  OXIGEN="WQ_O"
+  NITROGEN="WQ_N"

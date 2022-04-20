@@ -10,8 +10,8 @@ from typing import Any
 import pandas as pd
 import datetime as dt
 
-from site import addsitedir   #Para añadir la ruta del proyecto
-addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1") 
+#from site import addsitedir   #Para añadir la ruta del proyecto
+#addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1") 
 from util.event import Event,DataEventId
 
 class FileIn(Atomic):
@@ -103,7 +103,8 @@ class FileOut(Atomic):
           columns.append(it[0])
           content.append(it[1])
         newdata =pd.DataFrame(content,columns)
-        self.data=self.data.append(newdata.T,ignore_index=True)
+        #self.data=self.data.append(newdata.T,ignore_index=True)
+        self.data=pd.concat([self.data,newdata.T],ignore_index=True) #Una actualización que propone la versión 10 de Python
       
       if self.log==True: 
           logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)

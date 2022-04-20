@@ -1,7 +1,5 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-
-
 import netCDF4
 from site import addsitedir   #Para añadir la ruta del proyecto
 addsitedir("C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1") 

@@ -67,6 +67,65 @@ class FileIn(Atomic):
       #logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
       #logger.info(msg)
 
+class FileInVar(Atomic):
+  '''A model to load a file to ask SimSensor telemetries
+  File example
+  DateTime	          Lat	        Lon	          Depth	        Sensor
+  2008-09-12 00:30:30	47,5	      -122,3	      0	            WQ_N
+  2008-09-12 00:31:30	47,50015983	-122,2999521	-0,010423905	WQ_N
+  '''
+  def __init__(self, name, datafile, start, dataid=DataEventId.DEFAULT, log=False):       
+    super().__init__(name)
+    self.datafile=datafile
+    self.dataid=dataid
+    self.start=start
+    self.log=log
+    self.o_out = Port(Event, "o_out")
+    self.add_out_port(self.o_out)
+    
+  def initialize(self):
+    # Let's read a value from excel
+    if self.datafile[-1]=='x':
+      self.mydata=pd.read_excel(self.datafile,parse_dates=True)  #Sensor data loading
+    if self.datafile[-1]=='v':
+        self.mydata=pd.read_csv(self.datafile,parse_dates=True)  #Sensor data loading
+
+    self.columns=self.mydata.columns
+    self.N=self.mydata.DateTime.count()
+    self.ind=0
+    delta=self.mydata.DateTime[self.ind]-self.start
+    if delta.seconds>=0:
+      self.hold_in(PHASE_ACTIVE, delta.seconds)
+    else:
+      self.passivate
+    
+  def exit(self):
+    pass
+		
+  def deltint(self):
+    #Calcula delta tiempo hasta siguiente Telemetría
+    self.ind=self.ind+1              #Actualizo indice a siguiente
+    if self.ind>=self.N:
+      self.passivate()
+    else:
+      delta=self.mydata.DateTime[self.ind]-self.mydata.DateTime[self.ind-1]
+      self.hold_in(PHASE_ACTIVE, delta.seconds) 
+  
+  def deltext(self, e: Any):
+    pass 
+
+  def lambdaf(self):
+    row=self.mydata.iloc[self.ind]   #Telemetría
+    payload=row.to_dict()
+    datetime=payload.pop('DateTime') 
+    msg=Event(id= self.dataid.value,source= self.datafile,timestamp=datetime,payload=payload)
+    self.o_out.add(msg)
+    if self.log==True: 
+      #logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], values)
+      logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime, payload)
+      #logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
+      #logger.info(msg)
+
 
 class FileOut(Atomic):
   '''A model to store datatime-value-... messages on datafile if save=True'''
@@ -94,7 +153,9 @@ class FileOut(Atomic):
     pass
    
   def deltext(self, e: Any):
-    for msg in self.i_in.values:
+    #msg = self.i_in.get()
+    for bmsg in self.i_in._bag:
+      msg=bmsg.get()
       if self.save==True:
         items=msg.payload.items()
         columns=["Id","Source","DateTime","PayLoad"]
@@ -103,11 +164,10 @@ class FileOut(Atomic):
           columns.append(it[0])
           content.append(it[1])
         newdata =pd.DataFrame(content,columns)
-        #self.data=self.data.append(newdata.T,ignore_index=True)
-        self.data=pd.concat([self.data,newdata.T],ignore_index=True) #Una actualización que propone la versión 10 de Python
-      
+        self.data=self.data.append(newdata.T,ignore_index=True)
+    
       if self.log==True: 
-          logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)
+        logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)
 	
     self.continuef(e)
   
@@ -162,6 +222,38 @@ class FussionPosBloom(Atomic):
         logger.info("Fussin: %s Time: %s PAyLoad: %s" , self.name, self.msg.DateTime, self.msg.payload)
 
 
+class TestSensor2008(Coupled):
+  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
+  def __init__(self, name, start, log=False):
+    super().__init__(name)
+    fileinO = FileInVar("Sensor2008_WQ_O", './dataedge/Sensor2008_WQ_O.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+    fileinN = FileInVar("Sensor2008_WQ_N", './dataedge/Sensor2008_WQ_N.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+    fileinA = FileInVar("Sensor2008_WQ_A", './dataedge/Sensor2008_WQ_ALG.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+
+    fileout = FileOut("Sensor2008Out", './dataedge/Sensor2008out.xlsx', log=log)     
+    self.add_component(fileinN)
+    self.add_component(fileinO)   
+    self.add_component(fileinA)   
+       
+    self.add_component(fileout)
+    self.add_coupling(fileinN.o_out, fileout.i_in)
+    self.add_coupling(fileinO.o_out, fileout.i_in)
+    self.add_coupling(fileinA.o_out, fileout.i_in)
+    
+ 
+if __name__ == "__main__":
+  startdt=dt.datetime(2008,9,12,0,28,0)
+  enddt=dt.datetime(2008,9,13,0,30,0)
+  simseconds=(enddt-startdt).total_seconds()
+  coupled = TestSensor2008("Test2008", start=startdt, log=True)
+  
+  coord = Coordinator(coupled)
+  print('Ini Simulación')
+  coord.initialize()
+  coord.simulate_time(simseconds)   #En segundos
+  coord.exit()
+  print('Fin Simulación')
+  
 
 class Test1(Coupled):
   '''Un ejemplo acoplado que conecta ficheros de entrada y salida'''
@@ -183,8 +275,6 @@ class Test1(Coupled):
     self.add_coupling(fileT1.o_out, fileOT1.i_in)
     self.add_coupling(fileS1.o_out, fileOS1.i_in)
     self.add_coupling(fileP1.o_out, fileOP1.i_in)
-
-
 
 class Test2(Coupled):
   '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
@@ -250,7 +340,12 @@ class Test20210801(Coupled):
     self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
     self.add_coupling(EdgFus.o_out, filePB.i_in)
 
-if __name__ == "__main__":
+
+  
+
+
+
+'''if __name__ == "__main__":
   #startdt=dt.datetime(2021,8,1,0,0,0)
   #enddt=dt.datetime(2021,8,10,23,0,0)
   startdt=dt.datetime(2021,8,1,0,0,0)
@@ -267,3 +362,4 @@ if __name__ == "__main__":
   coord.simulate_time(simseconds)   #En segundos
   coord.exit()
   print('Fin Simulación')
+'''

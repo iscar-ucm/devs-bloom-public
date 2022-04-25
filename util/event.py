@@ -14,8 +14,6 @@ class Event:
 
 class DataEventId(Enum):
   '''Allowed data events'''
-  OXIGEN="WQ_O"
-  NITROGEN="WQ_N"
   SIMSEN="SimSensor"
   POS3D = "position"
   LATLON = "latlon"
@@ -35,7 +33,19 @@ class EnergyEventId(Enum):
   POWER_OFF = "power_off"
   POWER_DEMAND = "power_demand"
 
-class SimSenId(Enum):
-  '''Allowed energy events'''
+class SensorEventId(Enum):
+  '''Allowed Sensor events acording to BodySim'''
   OXIGEN="WQ_O"
   NITROGEN="WQ_N"
+
+@dataclass
+class SensorInfo:
+  '''Info of sesors signals'''
+  id: str           #SensorEventId
+  description: str  #Sensor description
+  max: float        #Max value 
+  min: float        #Min value
+  precision: float  #Precission
+  noisebias: float  #Bias of Error
+  noisesigma: float #Sigma of Error noise
+

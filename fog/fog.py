@@ -61,7 +61,9 @@ class FogHub(Atomic):
         pass
 
     def lambdaf(self):
-        """Función DEVS de salida."""
+        """
+        Función DEVS de salida.
+        """
         for i in range(1, self.n_uav+1):
             uav = "fusion_" + str(i)
             if self.msg_raw[uav] is not None:
@@ -82,6 +84,7 @@ class FogHub(Atomic):
         self.continuef(e)
 
         # Procesamos los puertos de entrada:
+        # Comentamos la detección de outliers, para agilizar la simulación
         for i in range(1, self.n_uav+1):
             uav = "fusion_" + str(i)
             iport = self.get_in_port("i_" + uav)
@@ -90,29 +93,29 @@ class FogHub(Atomic):
                 self.msg_raw[uav] = msg
                 self.msg_mod[uav] = msg
                 # Añadimos el mensaje al diccionario:
-                content = pd.Series(list(msg.payload.values()),
-                                    index=self.cache[uav].columns)
-                self.cache[uav] = self.cache[uav].append(content, ignore_index=True)
-                self.counter[uav] += 1
-                if(self.counter[uav] >= self.n_offset):
-                    # Para evitar desbordamientos si nos vienen muchos datos:
-                    self.counter[uav] = self.n_offset
-                    lof = nb.LocalOutlierFactor()
-                    wrong_values = lof.fit_predict(self.cache[uav])
-                    outlier_index = np.where(wrong_values == -1)
-                    self.cache[uav].iloc[outlier_index, ] = np.nan
-                    if(np.size(outlier_index) > 0):
-                        self.cache[uav] = self.cache[uav].interpolate()
-                        # self.msg_mod tiene que ser el último elemento del DF
-                        # y hay que eliminar el primer elemento del DF.
-                        content = list(self.cache[uav].iloc[-1])
-                        self.msg_mod[uav].payload['Lat'] = content[0]
-                        self.msg_mod[uav].payload['Lon'] = content[1]
-                        self.msg_mod[uav].payload['Depth'] = content[2]
-                        self.msg_mod[uav].payload['DetB'] = content[4]
-                        self.msg_mod[uav].payload['DetBb'] = content[5]
-                        # Quitamos el primer elemento de la cache:
-                        self.cache[uav].drop(index=self.cache[uav].index[0], axis=0, inplace=True)
+                ## content = pd.Series(list(msg.payload.values()),
+                ##                     index=self.cache[uav].columns)
+                ## self.cache[uav] = self.cache[uav].append(content, ignore_index=True)
+                ## self.counter[uav] += 1
+                ## if(self.counter[uav] >= self.n_offset):
+                ##     # Para evitar desbordamientos si nos vienen muchos datos:
+                ##     self.counter[uav] = self.n_offset
+                ##     lof = nb.LocalOutlierFactor()
+                ##     wrong_values = lof.fit_predict(self.cache[uav])
+                ##     outlier_index = np.where(wrong_values == -1)
+                ##     self.cache[uav].iloc[outlier_index, ] = np.nan
+                ##     if(np.size(outlier_index) > 0):
+                ##         self.cache[uav] = self.cache[uav].interpolate()
+                ##         # self.msg_mod tiene que ser el último elemento del DF
+                ##         # y hay que eliminar el primer elemento del DF.
+                ##         content = list(self.cache[uav].iloc[-1])
+                ##         self.msg_mod[uav].payload['Lat'] = content[0]
+                ##         self.msg_mod[uav].payload['Lon'] = content[1]
+                ##         self.msg_mod[uav].payload['Depth'] = content[2]
+                ##         self.msg_mod[uav].payload['DetB'] = content[4]
+                ##         self.msg_mod[uav].payload['DetBb'] = content[5]
+                ##         # Quitamos el primer elemento de la cache:
+                ##         self.cache[uav].drop(index=self.cache[uav].index[0], axis=0, inplace=True)
                 super().activate()
 
 
@@ -168,16 +171,20 @@ class FogDb(Atomic):
             self.db_mod[uav].to_csv(self.pathmod[uav] + ".csv")
 
     def lambdaf(self):
-        """Función DEVS de salida."""
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            if self.counter[uav] < 2*self.n_offset:
-                continue
-            # Añadir solo las n_offset últimas filas
-            df = self.db_raw[uav].tail(self.n_offset)
-            self.get_out_port("o_" + uav + "_raw").add(df)
-            df = self.db_mod[uav].tail(self.n_offset)
-            self.get_out_port("o_" + uav + "_mod").add(df)
+        """
+        Función DEVS de salida.
+        De momento la comentamos para que no vaya trabajo al cloud.
+        """
+        # for i in range(1, self.n_uav+1):
+        #    uav = "fusion_" + str(i)
+        #    if self.counter[uav] < 2*self.n_offset:
+        #        continue
+        #    # Añadir solo las n_offset últimas filas
+        #    df = self.db_raw[uav].tail(self.n_offset)
+        #    self.get_out_port("o_" + uav + "_raw").add(df)
+        #    df = self.db_mod[uav].tail(self.n_offset)
+        #    self.get_out_port("o_" + uav + "_mod").add(df)
+        pass
 
     def deltint(self):
         """Función DEVS de transición interna."""
@@ -188,7 +195,9 @@ class FogDb(Atomic):
         self.passivate()
 
     def deltext(self, e):
-        """Función DEVS de transición externa."""
+        """
+        Función DEVS de transición externa.
+        """
         self.continuef(e)
         super().passivate()
         # Procesamos todos los puertos:

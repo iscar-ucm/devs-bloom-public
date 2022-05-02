@@ -8,6 +8,7 @@ logger = get_logger(__name__, logging.INFO)
 from dataclasses import dataclass, field
 from typing import Any
 import pandas as pd
+import numpy as np
 import datetime as dt
 
 #from site import addsitedir   #Para añadir la ruta del proyecto
@@ -92,7 +93,7 @@ class FileInVar(Atomic):
 
     self.columns=self.mydata.columns
     self.N=self.mydata.DateTime.count()
-    self.ind=0
+    self.ind=round(np.nanargmin(np.absolute(self.mydata['DateTime']-self.start)))   #Nearest time index
     delta=self.mydata.DateTime[self.ind]-self.start
     if delta.seconds>=0:
       self.hold_in(PHASE_ACTIVE, delta.seconds)
@@ -164,7 +165,8 @@ class FileOut(Atomic):
           columns.append(it[0])
           content.append(it[1])
         newdata =pd.DataFrame(content,columns)
-        self.data=self.data.append(newdata.T,ignore_index=True)
+        #self.data=self.data.append(newdata.T,ignore_index=True)
+        self.data=pd.concat((self.data,newdata.T))
     
       if self.log==True: 
         logger.info("FileOut: %s DateTime: %s PayLoad: %s" , self.name, msg.timestamp, msg.payload)

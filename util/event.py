@@ -37,12 +37,14 @@ class SensorEventId(Enum):
   '''Allowed Sensor events acording to BodySim'''
   OXIGEN="WQ_O"
   NITROGEN="WQ_N"
+  ALGA="WQ_ALG"
 
 @dataclass
 class SensorInfo:
   '''Info of sesors signals'''
   id: str           #SensorEventId
   description: str  #Sensor description
+  delay:  float     #Sensor latency
   max: float        #Max value 
   min: float        #Min value
   precision: float  #Precission

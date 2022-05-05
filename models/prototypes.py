@@ -234,8 +234,7 @@ class Model_04(Coupled):
                           cloud.get_in_port("i_body_2_raw"))
         self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
                           cloud.get_in_port("i_body_2_mod"))
-    
-    
+
 
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
@@ -274,6 +273,7 @@ def test_03():
     coord.initialize()
     coord.simulate_time(sim_seconds)
     coord.exit()
+
 
 def test_04():
     """Comprobamos el funcionamiento de alguno de los modelos."""

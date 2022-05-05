@@ -39,5 +39,4 @@ class SensorEventId(Enum):
   NITROGEN="WQ_N"
   ALGA="WQ_ALG"
 
-
-
+class Command: XXX

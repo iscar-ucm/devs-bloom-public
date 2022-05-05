@@ -8,6 +8,7 @@ logger = get_logger(__name__, logging.INFO)
 from dataclasses import dataclass, field
 from typing import Any
 import pandas as pd
+import netCDF4
 import numpy as np
 import datetime as dt
 
@@ -177,6 +178,39 @@ class FileOut(Atomic):
     pass
 
 
+class TestSensor2008(Coupled):
+  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
+  def __init__(self, name, start, log=False):
+    super().__init__(name)
+    fileinO = FileInVar("Sensor2008_WQ_O", './dataedge/Sensor2008_WQ_O.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+    fileinN = FileInVar("Sensor2008_WQ_N", './dataedge/Sensor2008_WQ_N.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+    fileinA = FileInVar("Sensor2008_WQ_A", './dataedge/Sensor2008_WQ_ALG.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
+
+    fileout = FileOut("Sensor2008Out", './dataedge/Sensor2008out.xlsx', log=log)     
+    self.add_component(fileinN)
+    self.add_component(fileinO)   
+    self.add_component(fileinA)   
+       
+    self.add_component(fileout)
+    self.add_coupling(fileinN.o_out, fileout.i_in)
+    self.add_coupling(fileinO.o_out, fileout.i_in)
+    self.add_coupling(fileinA.o_out, fileout.i_in)
+
+
+if __name__ == "__main__":
+  startdt=dt.datetime(2008,9,12,0,28,0)
+  enddt=dt.datetime(2008,9,13,0,30,0)
+  simseconds=(enddt-startdt).total_seconds()
+  coupled = TestSensor2008("Test2008", start=startdt, log=True)
+  
+  coord = Coordinator(coupled)
+  print('Ini Simulación')
+  coord.initialize()
+  coord.simulate_time(simseconds)   #En segundos
+  coord.exit()
+  print('Fin Simulación')
+
+
 class FussionPosBloom(Atomic):
   '''A model of edge data fussion'''
    # Este se encarga de fusionar datos de Posición del barco y del Detector de Bloom
@@ -224,39 +258,6 @@ class FussionPosBloom(Atomic):
         logger.info("Fussin: %s Time: %s PAyLoad: %s" , self.name, self.msg.DateTime, self.msg.payload)
 
 
-class TestSensor2008(Coupled):
-  '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
-  def __init__(self, name, start, log=False):
-    super().__init__(name)
-    fileinO = FileInVar("Sensor2008_WQ_O", './dataedge/Sensor2008_WQ_O.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
-    fileinN = FileInVar("Sensor2008_WQ_N", './dataedge/Sensor2008_WQ_N.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
-    fileinA = FileInVar("Sensor2008_WQ_A", './dataedge/Sensor2008_WQ_ALG.xlsx', start=start, dataid=DataEventId.SIMSEN, log=log)     
-
-    fileout = FileOut("Sensor2008Out", './dataedge/Sensor2008out.xlsx', log=log)     
-    self.add_component(fileinN)
-    self.add_component(fileinO)   
-    self.add_component(fileinA)   
-       
-    self.add_component(fileout)
-    self.add_coupling(fileinN.o_out, fileout.i_in)
-    self.add_coupling(fileinO.o_out, fileout.i_in)
-    self.add_coupling(fileinA.o_out, fileout.i_in)
-    
- 
-if __name__ == "__main__":
-  startdt=dt.datetime(2008,9,12,0,28,0)
-  enddt=dt.datetime(2008,9,13,0,30,0)
-  simseconds=(enddt-startdt).total_seconds()
-  coupled = TestSensor2008("Test2008", start=startdt, log=True)
-  
-  coord = Coordinator(coupled)
-  print('Ini Simulación')
-  coord.initialize()
-  coord.simulate_time(simseconds)   #En segundos
-  coord.exit()
-  print('Fin Simulación')
-  
-
 class Test1(Coupled):
   '''Un ejemplo acoplado que conecta ficheros de entrada y salida'''
 
@@ -278,6 +279,7 @@ class Test1(Coupled):
     self.add_coupling(fileS1.o_out, fileOS1.i_in)
     self.add_coupling(fileP1.o_out, fileOP1.i_in)
 
+
 class Test2(Coupled):
   '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
   def __init__(self, name, start, log=False):
@@ -293,6 +295,7 @@ class Test2(Coupled):
     self.add_coupling(filePi.o_out, EdgFus.i_Pos)
     self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
     self.add_coupling(EdgFus.o_out, filePB.i_in)
+
 
 class Test20210801(Coupled):
   '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
@@ -310,6 +313,7 @@ class Test20210801(Coupled):
     self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
     self.add_coupling(EdgFus.o_out, filePB.i_in)
 
+
 class Test20210802(Coupled):
   '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''
   def __init__(self, name, start, log=False):
@@ -325,6 +329,7 @@ class Test20210802(Coupled):
     self.add_coupling(filePi.o_out, EdgFus.i_Pos)
     self.add_coupling(fileBi.o_out, EdgFus.i_Blo)
     self.add_coupling(EdgFus.o_out, filePB.i_in)
+
 
 class Test20210801(Coupled):
   '''Un ejemplo acoplado que conecta ficheros y hace fusión de datos en Edge'''

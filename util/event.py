@@ -39,15 +39,5 @@ class SensorEventId(Enum):
   NITROGEN="WQ_N"
   ALGA="WQ_ALG"
 
-@dataclass
-class SensorInfo:
-  '''Info of sesors signals'''
-  id: str           #SensorEventId
-  description: str  #Sensor description
-  delay:  float     #Sensor latency
-  max: float        #Max value 
-  min: float        #Min value
-  precision: float  #Precission
-  noisebias: float  #Bias of Error
-  noisesigma: float #Sigma of Error noise
+
 

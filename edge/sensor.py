@@ -10,21 +10,29 @@ logger = get_logger(__name__, logging.INFO)
 
 from typing import Any
 import datetime as dt
+from dataclasses import dataclass
 
-PHASE_OFF = "off"         #Standby, wating for a resquet
-PHASE_INIT= "init"        #Send the SensorInfor Event
-PHASE_ON = "on"           #Initialited, wating for a resquet
-PHASE_WORK = "work"       #Taking a measurement
-PHASE_DONE = "done"       #Send de Measuremente Event
-
+@dataclass 
+class SensorInfo:
+  '''Info of sesors signals'''
+  #def __init__(self, id:str,description:str,delay:float,max:float,min:float,precision:float,noisebias:float,noisesigma:float):       
+  id: str           #SensorEventId
+  description: str  #Sensor description
+  delay:  float     #Sensor latency
+  max: float        #Max value 
+  min: float        #Min value
+  precision: float  #Precission
+  noisebias: float  #Bias of Error
+  noisesigma: float #Sigma of Error noise
+  #pass
 
 
 #from site import addsitedir
 #addsitedir('C:/Users/segu2/OneDrive - Universidad Complutense de Madrid (UCM)/devs-bloom-1')
 
 from edge.file import FileIn,FileOut,FileInVar
-from edge.body import SimBody3
-from util.event import Event,SensorEventId,SensorInfo
+from edge.body import SimBody3,SimBody4
+from util.event import Event,SensorEventId
 
 
 class SimSensor(Atomic):
@@ -177,11 +185,11 @@ class Test2(Coupled):
 class SimSensor3(Atomic):
   '''Simulated Sensor using a simulated Body3 in NetHFC4 format using sigma and time 
   TBD: Initialitation of SensorInfo'''
-  #PHASE_OFF = "off"         #Standby, wating for a resquet
-  #PHASE_INIT = "init"       #Send SensorInfo
-  #PHASE_ON = "on"           #Initialited, wating for a resquet
-  #PHASE_WORK = "work"       #Taking a measurement
-  #PHASE_DONE = "work"       #Send Measurement
+  PHASE_OFF = "off"         #Standby, wating for a resquet
+  PHASE_INIT = "init"       #Send SensorInfo
+  PHASE_ON = "on"           #Initialited, wating for a resquet
+  PHASE_WORK = "work"       #Taking a measurement
+  PHASE_DONE = "done"       #Send Measurement
 
   def __init__(self,name,simbody,sensorinfo,log=False):       
     super().__init__(name)
@@ -196,47 +204,43 @@ class SimSensor3(Atomic):
   def initialize(self):
     # Wait for a resquet
     self.msgout=NULL
-    self.passivate(PHASE_OFF)         #SENSOR OFF
+    self.passivate(self.PHASE_OFF)         #SENSOR OFF
     
   def exit(self):
-    self.passivate(PHASE_OFF)         #SENSOR OFF
+    self.passivate(self.PHASE_OFF)         #SENSOR OFF
     pass
 		
   def deltint(self):
-    if self.phase==PHASE_INIT:
-      self.hold_in(PHASE_WORK,self.sensorinfo.delay)
-    elif self.phase==PHASE_WORK:
-      #bodytime=self.msgin.timestamp-self.simbody.vars['dtini']  #timestap to SimBody time
-      #myt=bodytime.secondsç
+    if self.phase==self.PHASE_INIT:
+      self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
+    elif self.phase==self.PHASE_WORK:
       myt=self.msgin.timestamp                   
       mylat=self.msgin.payload['Lat']
       mylon=self.msgin.payload['Lon']
       mydepth=self.msgin.payload['Depth']
       self.myvar=self.msgin.payload['Sensor']
-      #values=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
       value,t,i,j,l=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
       self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.sensorinfo.delay)
-      #data = {'BodyTime':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, self.myvar: values}
       data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, self.myvar: value, 'Bt':t,'Bi':i,'Bj':j,'Bl':l}
       self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data) 
-      self.hold_in(PHASE_DONE,0)
-    elif self.phase==PHASE_DONE:
-      self.passivate(PHASE_ON)
+      self.hold_in(self.PHASE_DONE,0)
+    elif self.phase==self.PHASE_DONE:
+      self.passivate(self.PHASE_ON)
     
   def deltext(self, e: Any):
-    if self.phase==PHASE_OFF:
+    if self.phase==self.PHASE_OFF:
       self.msgin = self.i_in.get()
       self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
-      self.hold_in(PHASE_INIT,0)
-    elif self.phase==PHASE_ON:
+      self.hold_in(self.PHASE_INIT,0)
+    elif self.phase==self.PHASE_ON:
       self.msgin = self.i_in.get()
-      self.hold_in(PHASE_WORK,self.sensorinfo.delay)
+      self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
        
   def lambdaf(self):
-    if self.phase==PHASE_INIT:
+    if self.phase==self.PHASE_INIT:
       self.o_out.add(self.msgout)
       if self.log==True:  logger.info(self.msgout)
-    if self.phase==PHASE_DONE:
+    if self.phase==self.PHASE_DONE:
       self.o_out.add(self.msgout)
       if self.log==True:  logger.info(self.msgout)
 
@@ -250,9 +254,9 @@ class Test3(Coupled):
   '''
   def __init__(self, name, simbody, start, log=False):
     super().__init__(name)
-    Nseninf=SensorInfo(id=SensorEventId.NITROGEN,description="Sonda de Nitrogeno",delay=0.4, max= 0.5, min=0,precision=0.01,noisebias=0.001,noisesigma=0.001)
-    Oseninf=SensorInfo(id=SensorEventId.OXIGEN,description="Sonda de Oxigeno",delay=0.6, max= 10.0, min=0,precision=0.1,noisebias=0.01,noisesigma=0.01)
-    Aseninf=SensorInfo(id=SensorEventId.ALGA,description="Detector de Algas",delay=0.8, max= 0.01, min=0,precision=0.001,noisebias=0.001,noisesigma=0.001)
+    Nseninf=SensorInfo(id=SensorEventId.NITROGEN,description="Sonda de Nitrogeno",delay=0.1, max= 0.5, min=0,precision=0.01,noisebias=0.001,noisesigma=0.001)
+    Oseninf=SensorInfo(id=SensorEventId.OXIGEN,description="Sonda de Oxigeno",delay=0.2, max= 10.0, min=0,precision=0.1,noisebias=0.01,noisesigma=0.01)
+    Aseninf=SensorInfo(id=SensorEventId.ALGA,description="Detector de Algas",delay=.6, max= 0.01, min=0,precision=0.001,noisebias=0.001,noisesigma=0.001)
     AskSensorN = FileInVar("Ask_N", './dataedge/Sweep2008_WQ_N.xlsx', start, dataid=SensorEventId.NITROGEN,  log=log)   
     AskSensorO = FileInVar("Ask_O", './dataedge/Sweep2008_WQ_O.xlsx', start, dataid=SensorEventId.OXIGEN, log=log) 
     AskSensorA = FileInVar("Ask_A", './dataedge/Sweep2008_WQ_ALG.xlsx', start, dataid=SensorEventId.ALGA, log=log) 
@@ -284,22 +288,24 @@ if __name__ == "__main__":
   startdt = dt.datetime(2008,9,12,4,0,0)
   enddt   = dt.datetime(2008,9,12,4,59,59)
   simseconds=(enddt-startdt).total_seconds()
+  print(dt.datetime.now())
   print('Sim IniDate:',startdt)
   print('Sim EndDate:',enddt)
-  #print('BodySim loading...')
+  print('BodySim loading...')
   bodyfile = './body/Washington-1d-2008-09-12_compr.nc'
   myvars=('WQ_O','WQ_N','WQ_ALG')
-  simbody=SimBody3('SimWater',bodyfile,myvars)
-  
-  print('Models Initialitation...')
+  simbody=SimBody4('SimWater',bodyfile,myvars)
+  print(dt.datetime.now())
+  print('Models Init...')
   coupled = Test3("SimBodyRead", simbody, startdt, log=False)
   coord = Coordinator(coupled, flatten=True)
   coord.initialize()
-  
+  print(dt.datetime.now())
   print('Simulating...')
   coord.simulate_time(simseconds)   #En segundos
   coord.exit()
   print('End')
+  print(dt.datetime.now())
 
 
 

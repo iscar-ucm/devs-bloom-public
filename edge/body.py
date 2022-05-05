@@ -184,6 +184,78 @@ class SimBody3:
       l=np.nan
     return value,t,i,j,l
 
+
+class SimBody4:
+  '''Body Simulated in NetHFC4 format.
+  It allow to read simulated data at t,lat,lon,depth.
+  Sigma is emulated in the initialization, due tu NetHFC4 file errors'''
+    
+  def __init__(self, name, bodyfile, vars):       
+    self.name=name
+    #print('BodySim Loading...')
+    self.simbody = netCDF4.Dataset(bodyfile)    
+    self.lat = np.array(self.simbody['lat'])
+    self.lon = np.array(self.simbody['lon'])
+    llc=np.c_[self.lon.ravel(), self.lat.ravel()]
+    self.lonlattree = KDTree(llc)
+    self.bottom = np.array(self.simbody['Bottom'])
+    self.sigma = np.array(self.simbody['sigma'])
+    #Repair sigma
+    l=len(self.sigma[1])
+    for i in range(l):
+      self.sigma[:,i,:]=(i-l)/l 
+    self.depth=np.zeros(l)
+    self.wsel= np.array(self.simbody['WSEL'])
+    self.layers= np.array(self.simbody['layers'])
+    self.time= np.array(self.simbody['time'])
+    #Get Ini-End DateTime
+    refstr=self.simbody['time'].units
+    refdate=dt.datetime.fromisoformat(refstr[-10:])
+    self.dtini=refdate+dt.timedelta(seconds=self.time[0]*24*3600)
+    self.dtend=refdate+dt.timedelta(seconds=self.time[-1]*24*3600)
+    print('BodySim IniDateTime:',self.dtini)
+    print('BodySim EndDateTime:',self.dtend)
+    self.time=(self.time-self.time[0])*24*3600      #Time in seconds from 0.       
+    
+  def __exit__(self):       
+    self.simbody.close()
+
+  def readvar(self,myvar,mytime,mylat,mylon,mydepth):
+    #  To read a value of myvar
+    #myvar='WQ_O'variable del fichero.nc
+    #mytime= DateTime 
+    #mylat= latitude (deg)
+    #mylon= longitude (deg)
+    #mydepth= depth(+meters)
+    value=np.nan
+    t=np.nan
+    i=np.nan
+    j=np.nan
+    l=np.nan
+    mytime=mytime-self.dtini
+    mytime=mytime.total_seconds()
+    t=round(np.argmin(np.absolute(self.time-mytime)))   #Nearest time index
+    if np.absolute(self.time[t]-mytime)<=60:            #Time resolution <=60s
+      dd,ii=self.lonlattree.query([mylon,mylat])
+      if dd<0.003:                                      #Spatial relosution < 0.003deg
+        i,j=np.unravel_index(ii,(len(self.bottom),len(self.bottom[0])))
+        depthrange=self.wsel[t,i,j] - self.bottom[i,j]
+        if mydepth<=depthrange:            
+          for ly in range(len(self.depth)):
+            self.depth[ly]=-self.sigma[i,ly,j]*depthrange
+          l =round(np.argmin(np.absolute(self.depth-mydepth),0),0)  #Nearest Depth Layer index
+          value=float(self.simbody[myvar][t,i,j,l].data)
+          if value==self.simbody[myvar].FillValue: value=np.nan
+          if value==0.0: value=np.nan
+        else: 
+          l=np.nan
+      else:
+        i=np.nan
+        j=np.nan
+    else: 
+      t=np.nan
+    return value,t,i,j,l
+
 if __name__ == "__main__":
   
   print('BodySim Loading')
@@ -191,7 +263,8 @@ if __name__ == "__main__":
   #bodyfile= 'D:/Unidades compartidas/ia-ges-bloom-cm/IoT/Washington-1d-2008-09-12_compr.nc'
   vars=('WQ_O','WQ_N','WQ_ALG')
 
-  simbody=SimBody3('SimWater',bodyfile,vars)
+  #simbody=SimBody3('SimWater',bodyfile,vars)
+  simbody=SimBody4('SimWater',bodyfile,vars)
   print('Data Req.')
   myt  = dt.datetime(2008,9,12,5,28,49)
   var='WQ_O'
@@ -205,6 +278,32 @@ if __name__ == "__main__":
   print(value)
   print('End')
 
+
+
+
+'''
+if __name__ == "__main__":
+  
+  print('BodySim Loading')
+  bodyfile='./body/Washington-1d-2008-09-12_compr.nc'
+  #bodyfile= 'D:/Unidades compartidas/ia-ges-bloom-cm/IoT/Washington-1d-2008-09-12_compr.nc'
+  vars=('WQ_O','WQ_N','WQ_ALG')
+
+  #simbody=SimBody3('SimWater',bodyfile,vars)
+  simbody=SimBody4('SimWater',bodyfile,vars)
+  print('Data Req.')
+  myt  = dt.datetime(2008,9,12,5,28,49)
+  var='WQ_O'
+  value=simbody.readvar(var,myt,47.64,-122.250,2)
+  print(value)
+  var='WQ_N'
+  value=simbody.readvar(var,myt,47.64,-122.250,2)
+  print(value)
+  var='WQ_ALG'
+  value=simbody.readvar(var,myt,47.64,-122.250,2)
+  print(value)
+  print('End')
+'''
 
 '''
 if __name__ == "__main__":

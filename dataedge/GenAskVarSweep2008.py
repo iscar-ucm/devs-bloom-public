@@ -8,10 +8,10 @@ Vars=('WQ_N','WQ_O','WQ_ALG')
 for var in Vars:
     fn=filename+'_'+var+'.xlsx'
 
-    inicio = datetime(2008,9,12,0,29,0)
-    fin   = datetime(2008,9,13,0,29,0)
-    #inicio = datetime(2008,9,12,0,30,30)
-    #fin   = datetime(2008,9,13,0,29,30)
+    #inicio = datetime(2008,9,12,0,29,0)
+    #fin   = datetime(2008,9,13,0,29,0)
+    inicio = datetime(2008,9,12,4,00,00)
+    fin   = datetime(2008,9,12,4,59,59)
     #inicio = datetime(2008,9,12,1,0,0)
     #fin   = datetime(2008,9,12,6,59,59)
 

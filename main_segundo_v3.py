@@ -7,7 +7,7 @@ from xdevs.models import Coupled
 import datetime as dt
 
 from edge.file import FileInVar,FileOut
-from edge.body import SimBody3
+from edge.body import SimBody4
 from edge.sensor import SimSensor3,SensorEventId,SensorInfo
 
 
@@ -46,23 +46,25 @@ class Test3(Coupled):
         
 if __name__ == "__main__":
   
-  #Simulación Test3, to sweep la zona (Ojo, es larga)
+  #Simulación Test4, to sweep la zona (Ojo, es larga)
   startdt = dt.datetime(2008,9,12,4,0,0)
   enddt   = dt.datetime(2008,9,12,4,59,59)
   simseconds=(enddt-startdt).total_seconds()
+  print(dt.datetime.now())                #To measure time in each stage
   print('Sim IniDate:',startdt)
   print('Sim EndDate:',enddt)
-  #print('BodySim loading...')
+  print('BodySim Loading...')
   bodyfile = './body/Washington-1d-2008-09-12_compr.nc'
   myvars=('WQ_O','WQ_N','WQ_ALG')
-  simbody=SimBody3('SimWater',bodyfile,myvars)
-  
-  print('Models Initialitation...')
+  simbody=SimBody4('SimWater',bodyfile,myvars)
+  print(dt.datetime.now())
+  print('Models Init...')
   coupled = Test3("SimBodyRead", simbody, startdt, log=False)
   coord = Coordinator(coupled, flatten=True)
   coord.initialize()
-  
+  print(dt.datetime.now())
   print('Simulating...')
   coord.simulate_time(simseconds)   #En segundos
   coord.exit()
   print('End')
+  print(dt.datetime.now())

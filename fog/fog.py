@@ -10,8 +10,8 @@ remanentes.
 """
 
 import pandas as pd
-import numpy as np
-import sklearn.neighbors as nb
+# import numpy as np
+# import sklearn.neighbors as nb
 import logging
 from time import strftime, localtime
 from xdevs import get_logger

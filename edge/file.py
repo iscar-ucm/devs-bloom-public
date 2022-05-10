@@ -17,9 +17,10 @@ logger = get_logger(__name__, logging.INFO)
 
 
 class FileIn(Atomic):
-    '''A model to load datetime-values messages from datafile'''
+    """A model to load datetime-values messages from datafile."""
 
     def __init__(self, name, datafile, dataid=DataEventId.DEFAULT, log=False):
+        """Instancia la clase."""
         super().__init__(name)
         self.datafile = datafile
         self.dataid = dataid
@@ -30,6 +31,7 @@ class FileIn(Atomic):
         self.add_out_port(self.o_out)
 
     def initialize(self):
+        """Función de inicialización."""
         # Let's read a value from excel
         if self.datafile[-1] == 'x':
             self.mydata = pd.read_excel(self.datafile)  # Sensor data loading
@@ -38,9 +40,11 @@ class FileIn(Atomic):
         super().passivate()
 
     def exit(self):
+        """Función de salida."""
         pass
 
     def deltint(self):
+        """Función de transición interna."""
         # Calcula delta tiempo hasta siguiente Telemetría
         Actual = self.mydata.iloc[self.ind].DateTime.values
         if self.ind[0] >= self.mydata.DateTime.count()-1:
@@ -52,6 +56,7 @@ class FileIn(Atomic):
             self.hold_in(PHASE_ACTIVE, seconds)
 
     def deltext(self, e: Any):
+        """Función de transición externa."""
         if (self.i_cmd.empty() is False):
             cmd: CommandEvent = self.i_cmd.get()
             if cmd.cmd == CommandEventId.CMD_START_SIM:
@@ -65,6 +70,7 @@ class FileIn(Atomic):
                 super().passivate()
 
     def lambdaf(self):
+        """Función de salida."""
         row = self.mydata.iloc[self.ind]   # Telemetría
         self.ind = self.ind + 1            # Actualizo indice a siguiente
         payload = row.to_dict('records')[0]

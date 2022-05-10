@@ -195,9 +195,7 @@ class FogDb(Atomic):
         self.passivate()
 
     def deltext(self, e):
-        """
-        Función DEVS de transición externa.
-        """
+        """Función DEVS de transición externa."""
         self.continuef(e)
         super().passivate()
         # Procesamos todos los puertos:
@@ -215,13 +213,9 @@ class FogDb(Atomic):
                     for value in msg.payload.values():
                         msg_list.append(value)
                     if dtype == "raw":
-                        content = pd.Series(msg_list,
-                                            index=self.db_raw[uav].columns)
-                        self.db_raw[uav] = self.db_raw[uav].append(content, ignore_index=True)
+                        self.db_raw[uav].loc[len(self.db_raw[uav])] = msg_list
                     elif dtype == "mod":
-                        content = pd.Series(msg_list,
-                                            index=self.db_mod[uav].columns)
-                        self.db_mod[uav] = self.db_mod[uav].append(content, ignore_index=True)
+                        self.db_mod[uav].loc[len(self.db_mod[uav])] = msg_list
                     self.counter[uav] += 1
             if self.counter[uav] == 2*self.n_offset:
                 super().activate()

@@ -40,4 +40,27 @@ class SensorEventId(Enum):
   ALGA="WQ_ALG"
 
 
+class CommandEventId(Enum):
+    """Allowed commands."""
 
+    CMD_START_SIM = "START_SIM"
+    CMD_STOP_SIM = "STOP_SIM"
+
+
+class CommandEvent:
+    """Clase para enviar mensajes del Commander al entorno de simulación."""
+
+    def __init__(self, date: dt.datetime = None, cmd: CommandEventId = None,
+                 args: str = ''):
+        """Función de instanciación."""
+        self.date: dt.datetime = date
+        self.cmd: CommandEventId = cmd
+        self.args: str = args
+
+    def parse(self, cmdline):
+        """Función que transforma una cadena de texto en CommandEvent."""
+        parts: list = cmdline.split(';')
+        self.date = dt.datetime.strptime(parts[0], '%Y-%m-%d %H:%M:%S')
+        self.cmd = CommandEventId[parts[1]]
+        if(len(parts) > 2):
+            self.args = parts[2]

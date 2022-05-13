@@ -66,7 +66,7 @@ class FileIn(Atomic):
                 self.ind = self.mydata[self.mydata.DateTime == start].index.values
                 self.columns = self.mydata.columns
                 self.hold_in(PHASE_ACTIVE, 0)
-            elif cmd.cmd == CommandEventId.CMD_STOP_SIM:
+            if cmd.cmd == CommandEventId.CMD_STOP_SIM:
                 super().passivate()
 
     def lambdaf(self):

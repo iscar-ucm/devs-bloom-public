@@ -303,6 +303,8 @@ class ModelCommander(Coupled):
         self.add_coupling(commander.o_cmd, bloom21.i_cmd)
         self.add_coupling(commander.o_cmd, ship22.i_cmd)
         self.add_coupling(commander.o_cmd, bloom22.i_cmd)
+        self.add_coupling(commander.o_cmd, fog1.i_cmd)
+        self.add_coupling(commander.o_cmd, fog2.i_cmd)
         self.add_coupling(ship11.o_out, fusion11.i_Pos)
         self.add_coupling(bloom11.o_out, fusion11.i_Blo)
         self.add_coupling(ship12.o_out, fusion12.i_Pos)

@@ -45,6 +45,7 @@ class CommandEventId(Enum):
 
     CMD_START_SIM = "START_SIM"
     CMD_STOP_SIM = "STOP_SIM"
+    CMD_FIX_OUTLIERS = "FIX_OUTLIERS"
 
 
 class CommandEvent:

@@ -13,10 +13,11 @@ import pandas as pd
 # import numpy as np
 # import sklearn.neighbors as nb
 import logging
+import datetime as dt
 from time import strftime, localtime
 from xdevs import get_logger
 from xdevs.models import Atomic, Coupled, Port
-from util.event import Event
+from util.event import CommandEvent, CommandEventId, Event
 # from dataclasses import dataclass, field
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -30,6 +31,8 @@ class FogHub(Atomic):
         super().__init__(name)
         self.n_uav = n_uav
         self.n_offset = n_offset
+        self.i_cmd = Port(CommandEvent, "i_cmd")
+        self.add_in_port(self.i_cmd)
         # Puertos con los datos de barco y bloom fusionados.
         for i in range(1, self.n_uav+1):
             uav = "fusion_" + str(i)
@@ -85,6 +88,9 @@ class FogHub(Atomic):
 
         # Procesamos los puertos de entrada:
         # Comentamos la detección de outliers, para agilizar la simulación
+        # De hecho, la detección de ouliers irá más abajo
+        # NOTA. Creo que al final lo mejor es que el detector de OUTLIERS
+        # vaya en FogDb. Hablarlo en la reunión.
         for i in range(1, self.n_uav+1):
             uav = "fusion_" + str(i)
             iport = self.get_in_port("i_" + uav)
@@ -117,6 +123,17 @@ class FogHub(Atomic):
                 ##         # Quitamos el primer elemento de la cache:
                 ##         self.cache[uav].drop(index=self.cache[uav].index[0], axis=0, inplace=True)
                 super().activate()
+        if self.i_cmd.empty() is False:
+            cmd: CommandEvent = self.i_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_FIX_OUTLIERS:
+                # Leemos los argumentos del comando
+                args = cmd.args.split(",")
+                if args[0] == self.parent.name:
+                    init_interval = dt.datetime.strptime(args[1], '%Y-%m-%d %H:%M:%S') 
+                    stop_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S\n') 
+                    print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " 
+                          + cmd.date.strftime("%Y/%m/%d %H:%M:%S") + " para detectar outliers en el intervalo: (" 
+                          + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-" + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
 
 
 class FogDb(Atomic):
@@ -227,6 +244,8 @@ class FogServer(Coupled):
     def __init__(self, name, n_uav=1, n_offset=100):
         """Inicialización de atributos."""
         super().__init__(name)
+        self.i_cmd = Port(CommandEvent, "i_cmd")
+        self.add_in_port(self.i_cmd)
         for i in range(1, n_uav+1):
             uav = "fusion_" + str(i)
             self.add_in_port(Port(Event, "i_" + uav))
@@ -237,6 +256,7 @@ class FogServer(Coupled):
         db = FogDb("FogDb", n_uav, n_offset)
         self.add_component(hub)
         self.add_component(db)
+        self.add_coupling(self.i_cmd, hub.i_cmd)
         for i in range(1, n_uav+1):
             uav = "fusion_" + str(i)
             # EIC

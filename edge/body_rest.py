@@ -1,79 +1,49 @@
-from re import S
-
-import netCDF4
-import numpy as np
-from scipy.interpolate import griddata
-
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask.json import JSONEncoder
+from edge.body import SimBody4 as Sensor
+from datetime import datetime, timedelta
+import numpy as np
+
+class CustomJSONEncoder(JSONEncoder):
+
+    def default(self, obj):
+      try:
+        if isinstance(obj, np.generic):
+          return obj.item()
+      except TypeError:
+          pass
+      return JSONEncoder.default(self, obj)
+
 
 app = Flask(__name__)
-CORS(app)
+app.json_encoder = CustomJSONEncoder
 
-class SimBody:
-  '''Body Simulated in NetHFC4 format. It allows to read simulated data'''
-    
-  def __init__(self, name, bodyfile, vars):
-    self.name = name
-    simbody = netCDF4.Dataset(bodyfile)    # Let's open the file or not
-    #   Not all variables have the same dimensions, see file info for details
-    lat = np.array(simbody['lat'])
-    inan = (lat != simbody['lat'].FillValue)
-    latflat = lat[inan]
-    lon = np.array(simbody['lon'])
-    lonflat = lon[lon != simbody['lon'].FillValue]    
-    time = np.array(simbody['time'])
-    time = time - time[0]
-    self.vars = {
-      'time': time,
-      'latflat': latflat,
-      'lonflat': lonflat,
-      'inan': inan
-    }
-    for var in vars:
-      tempvar = np.array(simbody[var])
-      tempvar[tempvar == simbody[var].FillValue] = np.NaN # Remove fill values
-      self.vars[var] = tempvar
-    simbody.close()
+def create_sensor(bodyfile: str, vars:list=('WQ_O','WQ_N','WQ_ALG')):
+  print(f'Loading BodySim file: {bodyfile}')
+  return Sensor('SimWater', bodyfile, vars)
 
-  def readvar(self, var, time, lat, lon, layer):
-    vartl = self.vars[var][time, :, :, layer]
-    varflat = vartl[self.vars['inan']]
-    varint = griddata(
-      (self.vars['lonflat'], self.vars['latflat']),
-      varflat,
-      (lon, lat),
-      method='linear'
-    )
-    return varint.tolist()
-
-print('Loading BodySim')
-bodyfile = '../data/Washington-1d-2008-09-12_compr.nc'
-vars = ('WQ_O','WQ_N')
-simbody = SimBody('SimWater', bodyfile, vars)
+simbody = create_sensor('/POOL/data/devs-bloom/dataedge/Washington-1d-2008-09-12_compr.nc')
+# start_dt = datetime(2008,9,12,5,28,49)
 
 @app.route('/', methods=['POST'])
 def sensor():
   try:
     data = request.get_json()
     measure = [data['payload'][k] for k in ('var', 'time', 'lat', 'lon', 'depth')]
+    measure[1] = datetime.fromtimestamp(measure[1])
     measurement = data['payload'].copy()
     measurement.update({
-      data['payload']['var']: simbody.readvar(*measure)
+      measure[0]: [v for v in simbody.readvar(*measure)],
     })
     result = jsonify(measurement)
   except Exception as e:
     print(e)
-    print(measurement)
     result = jsonify(error='invalid params')
   return result
 
 
 def test():
-  print('Cargando BodySim')
-  bodyfile = './data/Washington-1d-2008-09-12_compr.nc'
-  vars = ('WQ_O','WQ_N')
-  simbody = SimBody('SimWater', bodyfile, vars)
+  simbody = create_sensor('/POOL/data/devs-bloom/dataedge/Washington-1d-2008-09-12_compr.nc')
   print('Solicitando Datos')
   O2 = simbody.readvar("WQ_O", 50, 47.6, -122.27, 5)
   print("WQ_O: ", O2)
@@ -84,6 +54,6 @@ def test():
   
 if __name__ == "__main__":
   test()
-  # export FLASK_APP=body_rest
-  # flask run
 
+# To run as flask application:
+#   FLASK_APP=body_rest flask run

@@ -74,5 +74,6 @@ class PoweredSimSensor(PoweredComponent):
         timestamp=self.clock,
         payload=self.body.readvar(*info),
       )
+      print(measurement)
       self.o_pwr.add(energy)
       self.o_data.add(measurement)

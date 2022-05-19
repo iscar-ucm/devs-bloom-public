@@ -1,7 +1,7 @@
 from numpy import array, dot, linalg, sin, cos
-from typing import Protocol
+# from typing import Protocol
 
-class USVController(Protocol):
+class USVController:
 
   def generate_trajectory(self) -> array:
     '''Compute a new target point'''

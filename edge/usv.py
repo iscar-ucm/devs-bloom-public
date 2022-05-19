@@ -1,6 +1,5 @@
 import datetime as dt
 import numpy as np
-import requests
 from xdevs.models import Atomic, Port, Coupled
 from xdevs.sim import Coordinator
 from util.event import EnergyEventId, DataEventId, Event
@@ -11,6 +10,7 @@ from edge.usv_control import USVController, USVPurePursuitController
 from edge.usv_sensors import PoweredSimSensor
 from edge.usv_comms import GenericCommunicationModule
 from edge.usv_actuators import ContinuousModel
+from util.rest import RestBody
 
 PHASE_ON = "on"
 PHASE_OFF = "off"
@@ -121,7 +121,7 @@ class Processor(PoweredComponent):
         'time': time,
         'lat': lat,
         'lon': lon,
-        'depth':  10
+        'depth':  2
       }
     ))
 
@@ -378,27 +378,10 @@ class TestTwoUSV(Coupled):
                       test_output.get_in_port('i_in'))
 
 
-class RestBody:
-
-  def __init__(self, url):
-    self.url = url
-
-  def readvar(self, var: str, time: float, lat: float, lon: float, layer: int) -> dict:
-    data = {
-      'timestamp': time,
-      'payload': {
-        'var': var,
-        'time': time,
-        'lat': lat,
-        'lon': lon,
-        'depth': layer
-      }
-    }
-    return requests.post(self.url, json=data).json()
 
 
-def test_one_USV(trajectory: str='triangle') -> None:
-  body = RestBody('http://127.0.0.1:5000')
+def test_one_USV(trajectory: str='triangle', host: str='http://127.0.0.1:5000') -> None:
+  body = RestBody(host)
   start_dt = dt.datetime(2021, 8, 1, 0, 0, 0)
   end_dt = dt.datetime(2021, 8, 1, 0, 30, 0)
   sim_seconds = (end_dt - start_dt).total_seconds()
@@ -415,8 +398,8 @@ def test_one_USV(trajectory: str='triangle') -> None:
   coord.exit()
   
   
-def test_two_USV(trajectory: str='triangle') -> None:
-  body = RestBody('http://127.0.0.1:5000')
+def test_two_USV(trajectory: str='triangle', host: str='http://127.0.0.1:5000') -> None:
+  body = RestBody(host)
   start_dt = dt.datetime(2021, 8, 1, 0, 0, 0)
   end_dt = dt.datetime(2021, 8, 1, 0, 30, 0)
   sim_seconds = (end_dt - start_dt).total_seconds()

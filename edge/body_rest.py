@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask.json import JSONEncoder
 from edge.body import SimBody4 as Sensor
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
 
 class CustomJSONEncoder(JSONEncoder):
@@ -23,7 +23,6 @@ def create_sensor(bodyfile: str, vars:list=('WQ_O','WQ_N','WQ_ALG')):
   return Sensor('SimWater', bodyfile, vars)
 
 simbody = create_sensor('/POOL/data/devs-bloom/dataedge/Washington-1d-2008-09-12_compr.nc')
-# start_dt = datetime(2008,9,12,5,28,49)
 
 @app.route('/', methods=['POST'])
 def sensor():

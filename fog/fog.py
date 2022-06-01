@@ -10,8 +10,7 @@ remanentes.
 """
 
 import pandas as pd
-# import numpy as np
-# import sklearn.neighbors as nb
+import numpy as np
 import logging
 import datetime as dt
 from time import strftime, localtime
@@ -23,105 +22,89 @@ from util.event import CommandEvent, CommandEventId, Event
 logger = get_logger(__name__, logging.DEBUG)
 
 
-class FogHub(Atomic):
-    """Hub de datos del servidor Fog."""
+class FogDb(Atomic):
+    """Clase para guardar datos en la base de datos."""
 
-    def __init__(self, name, n_uav=1, n_offset=100):
+    def __init__(self, name: str, edge_devices: list, n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
-        self.n_uav = n_uav
+        self.edge_devices = edge_devices
         self.n_offset = n_offset
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
         # Puertos con los datos de barco y bloom fusionados.
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.add_in_port(Port(Event, "i_" + uav))
-            self.add_out_port(Port(Event, "o_" + uav + "_raw"))
-            self.add_out_port(Port(Event, "o_" + uav + "_mod"))
+        for edge_device in edge_devices:
+            self.add_in_port(Port(Event, "i_" + edge_device))
+            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
+            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
 
     def initialize(self):
-        """Incialización de la simulación DEVS."""
-        # Memoria cache para ir detectanto los outliers:
-        self.msg_raw = {}
-        self.msg_mod = {}
-        self.cache = {}
+        """Inicialización de la simulación DEVS."""
+        self.db_raw = {}
+        self.db_mod = {}
+        self.dcache = {}
+        self.pathraw = {}
+        self.pathmod = {}
         self.counter = {}
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.msg_raw[uav] = None
-            self.msg_mod[uav] = None
-            self.cache[uav] = pd.DataFrame(columns=["Lat",
-                                                    "Lon",
-                                                    "Depth",
-                                                    "DetB",
-                                                    "DetBb"])
-            self.counter[uav] = 0
+        time_mark = strftime("%Y%m%d%H%M%S", localtime())
+        for edge_device in self.edge_devices:
+            # TODO: Necesitamos almacenar en algún sitio las columnas de cada edge_device. Ahora vale porque
+            # todos son iguales, pero en un futuro no valdrá:
+            self.db_raw[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
+            self.db_mod[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
+            self.dcache[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
+            self.pathraw[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_raw"
+            self.pathmod[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_mod"
+            # offset
+            self.counter[edge_device] = 0
         self.passivate()
 
     def exit(self):
         """Función de salida de la simulación."""
-        pass
+        # Aquí tenemos que guardar la base de datos.
+        for edge_device in self.edge_devices:
+            self.db_raw[edge_device].to_csv(self.pathraw[edge_device] + ".csv")
+            self.db_mod[edge_device].to_csv(self.pathmod[edge_device] + ".csv")
 
     def lambdaf(self):
         """
         Función DEVS de salida.
+
+        De momento la comentamos para que no vaya trabajo al cloud.
         """
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            if self.msg_raw[uav] is not None:
-                self.get_out_port("o_" + uav + "_raw").add(self.msg_raw[uav])
-            if self.msg_mod[uav] is not None:
-                self.get_out_port("o_" + uav + "_mod").add(self.msg_mod[uav])
+        for edge_device in self.edge_devices:
+            if self.counter[edge_device] >= self.n_offset:
+                df = self.db_raw[edge_device].tail(self.n_offset)
+                self.get_out_port("o_" + edge_device + "_raw").add(df)
+            if len(self.dcache[edge_device]) > 0:
+                self.get_out_port("o_" + edge_device + "_mod").add(self.dcache[edge_device])
 
     def deltint(self):
         """Función DEVS de transición interna."""
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.msg_raw[uav] = None
-            self.msg_mod[uav] = None
+        for edge_device in self.edge_devices:
+            if self.counter[edge_device] == self.n_offset:
+                self.counter[edge_device] = 0
+            if len(self.dcache[edge_device]) > 0:
+                self.dcache[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
         self.passivate()
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
         self.continuef(e)
-
-        # Procesamos los puertos de entrada:
-        # Comentamos la detección de outliers, para agilizar la simulación
-        # De hecho, la detección de ouliers irá más abajo
-        # NOTA. Creo que al final lo mejor es que el detector de OUTLIERS
-        # vaya en FogDb. Hablarlo en la reunión.
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            iport = self.get_in_port("i_" + uav)
-            if (iport.empty() is False):
-                msg = iport.get()
-                self.msg_raw[uav] = msg
-                self.msg_mod[uav] = msg
-                # Añadimos el mensaje al diccionario:
-                ## content = pd.Series(list(msg.payload.values()),
-                ##                     index=self.cache[uav].columns)
-                ## self.cache[uav] = self.cache[uav].append(content, ignore_index=True)
-                ## self.counter[uav] += 1
-                ## if(self.counter[uav] >= self.n_offset):
-                ##     # Para evitar desbordamientos si nos vienen muchos datos:
-                ##     self.counter[uav] = self.n_offset
-                ##     lof = nb.LocalOutlierFactor()
-                ##     wrong_values = lof.fit_predict(self.cache[uav])
-                ##     outlier_index = np.where(wrong_values == -1)
-                ##     self.cache[uav].iloc[outlier_index, ] = np.nan
-                ##     if(np.size(outlier_index) > 0):
-                ##         self.cache[uav] = self.cache[uav].interpolate()
-                ##         # self.msg_mod tiene que ser el último elemento del DF
-                ##         # y hay que eliminar el primer elemento del DF.
-                ##         content = list(self.cache[uav].iloc[-1])
-                ##         self.msg_mod[uav].payload['Lat'] = content[0]
-                ##         self.msg_mod[uav].payload['Lon'] = content[1]
-                ##         self.msg_mod[uav].payload['Depth'] = content[2]
-                ##         self.msg_mod[uav].payload['DetB'] = content[4]
-                ##         self.msg_mod[uav].payload['DetBb'] = content[5]
-                ##         # Quitamos el primer elemento de la cache:
-                ##         self.cache[uav].drop(index=self.cache[uav].index[0], axis=0, inplace=True)
+        # Procesamos todos los puertos:
+        for edge_device in self.edge_devices:
+            port = self.get_in_port("i_" + edge_device)
+            if(port.empty() is False):
+                msg = port.get()
+                msg_list = list()
+                msg_list.append(msg.id)
+                msg_list.append(msg.source)
+                msg_list.append(msg.timestamp)
+                for value in msg.payload.values():
+                    msg_list.append(value)
+                self.db_raw[edge_device].loc[len(self.db_raw[edge_device])] = msg_list
+                self.counter[edge_device] += 1
+            if self.counter[edge_device] == self.n_offset:
                 super().activate()
         if self.i_cmd.empty() is False:
             cmd: CommandEvent = self.i_cmd.get()
@@ -129,146 +112,62 @@ class FogHub(Atomic):
                 # Leemos los argumentos del comando
                 args = cmd.args.split(",")
                 if args[0] == self.parent.name:
-                    init_interval = dt.datetime.strptime(args[1], '%Y-%m-%d %H:%M:%S') 
-                    stop_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S\n') 
-                    print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " 
-                          + cmd.date.strftime("%Y/%m/%d %H:%M:%S") + " para detectar outliers en el intervalo: (" 
-                          + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-" + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
+                    edge_device = args[1]
+                    init_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S')
+                    stop_interval = dt.datetime.strptime(args[3], '%Y-%m-%d %H:%M:%S\n')
+                    # Tengo que seleccionar los datos en el intervalo especificado:
+                    self.dcache[edge_device] = self.db_raw[edge_device][(self.db_raw[edge_device].timestamp >= init_interval) &
+                                                                        (self.db_raw[edge_device].timestamp <= stop_interval)]
+                    print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " + cmd.date.strftime("%Y/%m/%d %H:%M:%S")
+                          + " para detectar outliers de " + edge_device + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
+                          + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
+                    self.fit_outlayers(edge_device)
+                    super().activate()
 
-
-class FogDb(Atomic):
-    """Clase para guardar datos en la base de datos."""
-
-    def __init__(self, name, n_uav=1, n_offset=100):
-        """Función de inicialización de atributos."""
-        super().__init__(name)
-        self.n_uav = n_uav
-        self.n_offset = n_offset
-        # Puertos con los datos de barco y bloom fusionados.
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.add_in_port(Port(Event, "i_" + uav + "_raw"))
-            self.add_in_port(Port(Event, "i_" + uav + "_mod"))
-            self.add_out_port(Port(pd.DataFrame, "o_" + uav + "_raw"))
-            self.add_out_port(Port(pd.DataFrame, "o_" + uav + "_mod"))
-
-    def initialize(self):
-        """Inicialización de la simulación DEVS."""
-        self.db_raw = {}
-        self.db_mod = {}
-        self.pathraw = {}
-        self.pathmod = {}
-        self.counter = {}
-        time_mark = strftime("%Y%m%d%H%M%S", localtime())
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.db_raw[uav] = pd.DataFrame(columns=["id", "source",
-                                                     "timestamp",
-                                                     "Lat", "Lon",
-                                                     "Depth", "DetB",
-                                                     "DetBb"])
-            self.db_mod[uav] = pd.DataFrame(columns=["id", "source",
-                                                     "timestamp",
-                                                     "Lat", "Lon",
-                                                     "Depth", "DetB",
-                                                     "DetBb"])
-            self.pathraw[uav] = "data/" + self.parent.name + "." + uav + "_" + time_mark + "_raw"
-            self.pathmod[uav] = "data/" + self.parent.name + "." + uav + "_" + time_mark + "_mod"
-            # Los datos raw y mod deben venir a la vez, por lo que
-            # solo hay un contador.
-            self.counter[uav] = 0
-        self.passivate()
-
-    def exit(self):
-        """Función de salida de la simulación."""
-        # Aquí tenemos que guardar la base de datos.
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            self.db_raw[uav].to_csv(self.pathraw[uav] + ".csv")
-            self.db_mod[uav].to_csv(self.pathmod[uav] + ".csv")
-
-    def lambdaf(self):
+    def fit_outlayers(self, edge_device):
         """
-        Función DEVS de salida.
-        De momento la comentamos para que no vaya trabajo al cloud.
+        Función que se encarga de reparar los outliers.
+
+        Ver el siguiente artículo: https://medium.com/analytics-vidhya/identifying-cleaning-and-replacing-outliers-titanic-dataset-20182a062893
+
+        TODO: De momento el procedimiento no es muy avanzado. Por ejemplo: Lat y Lon se deberían detectar de forma multivariable (simultánea),
+        teniendo en cuenta la distancia con los vecinos.
         """
-        # for i in range(1, self.n_uav+1):
-        #    uav = "fusion_" + str(i)
-        #    if self.counter[uav] < 2*self.n_offset:
-        #        continue
-        #    # Añadir solo las n_offset últimas filas
-        #    df = self.db_raw[uav].tail(self.n_offset)
-        #    self.get_out_port("o_" + uav + "_raw").add(df)
-        #    df = self.db_mod[uav].tail(self.n_offset)
-        #    self.get_out_port("o_" + uav + "_mod").add(df)
-        pass
-
-    def deltint(self):
-        """Función DEVS de transición interna."""
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            if self.counter[uav] == 2*self.n_offset:
-                self.counter[uav] = 0
-        self.passivate()
-
-    def deltext(self, e):
-        """Función DEVS de transición externa."""
-        self.continuef(e)
-        super().passivate()
-        # Procesamos todos los puertos:
-        for i in range(1, self.n_uav+1):
-            uav = "fusion_" + str(i)
-            for dtype in ["raw", "mod"]:
-                portname = "i_" + uav + "_" + dtype
-                port = self.get_in_port(portname)
-                if(port.empty() is False):
-                    msg = port.get()
-                    msg_list = list()
-                    msg_list.append(msg.id)
-                    msg_list.append(msg.source)
-                    msg_list.append(msg.timestamp)
-                    for value in msg.payload.values():
-                        msg_list.append(value)
-                    if dtype == "raw":
-                        self.db_raw[uav].loc[len(self.db_raw[uav])] = msg_list
-                    elif dtype == "mod":
-                        self.db_mod[uav].loc[len(self.db_mod[uav])] = msg_list
-                    self.counter[uav] += 1
-            if self.counter[uav] == 2*self.n_offset:
-                super().activate()
+        self.dcache[edge_device].fillna(0, inplace=True)
+        # TODO: Estas columnas deberían estar en alguna clase:
+        columns = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
+        whisker_width = 1.5
+        for column in columns:
+            q1 = self.dcache[edge_device][column].quantile(0.25)
+            q3 = self.dcache[edge_device][column].quantile(0.75)
+            iqr = q3 - q1
+            lower_whisker = q1 - whisker_width*iqr
+            upper_whisker = q3 + whisker_width*iqr
+            self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] > upper_whisker, np.nan, self.dcache[edge_device][column])
+            self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] < lower_whisker, np.nan, self.dcache[edge_device][column])
+            self.dcache[edge_device][column] = self.dcache[edge_device][column].interpolate().ffill().bfill()
+        self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.dcache[edge_device]], ignore_index=True)
 
 
 class FogServer(Coupled):
     """Clase acoplada FogServer."""
 
-    def __init__(self, name, n_uav=1, n_offset=100):
+    def __init__(self, name, edge_devices: list, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
-        for i in range(1, n_uav+1):
-            uav = "fusion_" + str(i)
-            self.add_in_port(Port(Event, "i_" + uav))
-            self.add_out_port(Port(pd.DataFrame, "o_" + uav + "_raw"))
-            self.add_out_port(Port(pd.DataFrame, "o_" + uav + "_mod"))
+        for edge_device in edge_devices:
+            self.add_in_port(Port(Event, "i_" + edge_device))
+            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
+            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
 
-        hub = FogHub("FogHub", n_uav, n_offset)
-        db = FogDb("FogDb", n_uav, n_offset)
-        self.add_component(hub)
+        db = FogDb("FogDb", edge_devices, n_offset)
         self.add_component(db)
-        self.add_coupling(self.i_cmd, hub.i_cmd)
-        for i in range(1, n_uav+1):
-            uav = "fusion_" + str(i)
+        self.add_coupling(self.i_cmd, db.i_cmd)
+        for edge_device in edge_devices:
             # EIC
-            self.add_coupling(self.get_in_port("i_" + uav),
-                              hub.get_in_port("i_" + uav))
-            # IC
-            self.add_coupling(hub.get_out_port("o_" + uav + "_raw"),
-                              db.get_in_port("i_" + uav + "_raw"))
-            self.add_coupling(hub.get_out_port("o_" + uav + "_mod"),
-                              db.get_in_port("i_" + uav + "_mod"))
+            self.add_coupling(self.get_in_port("i_" + edge_device), db.get_in_port("i_" + edge_device))
             # EOC
-            self.add_coupling(db.get_out_port("o_" + uav + "_raw"),
-                              self.get_out_port("o_" + uav + "_raw"))
-            self.add_coupling(db.get_out_port("o_" + uav + "_mod"),
-                              self.get_out_port("o_" + uav + "_mod"))
+            self.add_coupling(db.get_out_port("o_" + edge_device + "_raw"), self.get_out_port("o_" + edge_device + "_raw"))
+            self.add_coupling(db.get_out_port("o_" + edge_device + "_mod"), self.get_out_port("o_" + edge_device + "_mod"))

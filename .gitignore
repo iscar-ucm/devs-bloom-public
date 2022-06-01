@@ -140,12 +140,13 @@ cython_debug/
 # xDEVS stuff
 *.log
 
-# VSCODE stuff
+# VSCODE/lsp-mode stuff
 .vscode
 .project
 .settings
 .classpath
 .devcontainer
+setup.cfg
 
 # Other things
 *.html

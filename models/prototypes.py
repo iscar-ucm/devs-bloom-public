@@ -169,9 +169,12 @@ class Model_03(Coupled):
 
 
 class Model_04(Coupled):
-    """Clase que implementa un 2 masas de agua
+    """
+    Clase que implementa un 2 masas de agua.
+
     Body1 con UAV11
-    Body2 con UAV21 y UAV22"""
+    Body2 con UAV21 y UAV22
+    """
 
     def __init__(self, name, start, day, log=False):
         """Función de inicialización."""
@@ -241,6 +244,7 @@ class Model_04(Coupled):
 class ModelCommander(Coupled):
     """
     Clase que implementa un modelo con dos UAV x 2 masas de agua.
+
     Además, introduce el Commander, para introducir eventos de simulación.
     """
 
@@ -335,6 +339,84 @@ class ModelCommander(Coupled):
                           cloud.get_in_port("i_body_2_mod"))
 
 
+class ModelOutliers(Coupled):
+    """Clase que implementa un modelo con dos UAV x 2 masas de agua."""
+
+    def __init__(self, name: str, commands_path: str, day: str, log=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # Commander
+        commander = Commander("Commander", commands_path)
+        # FOG SEVER 1: Masa de agua 1
+        # UAV 11
+        ship11 = FileIn("ShipPos11", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom11 = FileIn("DetBlo11", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion11 = FussionPosBloom("EdgeFussion11")
+        # UAV 12
+        ship12 = FileIn("ShipPos12", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom12 = FileIn("DetBlo12", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion12 = FussionPosBloom("EdgeFussion12")
+        fog1 = FogServer("FogServer1", [fusion11.name, fusion12.name])
+        # FOG SEVER 2: Masa de agua 2
+        # UAV 21
+        ship21 = FileIn("ShipPos21", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom21 = FileIn("DetBlo21", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion21 = FussionPosBloom("EdgeFussion21")
+        # UAV 22
+        ship22 = FileIn("ShipPos22", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom22 = FileIn("DetBlo22", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion22 = FussionPosBloom("EdgeFussion22")
+        fog2 = FogServer("FogServer2", [fusion21.name, fusion22.name])
+        # Capa Cloud:
+        cloud = Cloud("Cloud", [DataEventId.POSBLOOM.name])
+        self.add_component(commander)
+        self.add_component(fog1)
+        self.add_component(ship11)
+        self.add_component(bloom11)
+        self.add_component(fusion11)
+        self.add_component(ship12)
+        self.add_component(bloom12)
+        self.add_component(fusion12)
+        self.add_component(fog2)
+        self.add_component(ship21)
+        self.add_component(bloom21)
+        self.add_component(fusion21)
+        self.add_component(ship22)
+        self.add_component(bloom22)
+        self.add_component(fusion22)
+        self.add_component(cloud)
+        self.add_coupling(commander.o_cmd, ship11.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom11.i_cmd)
+        self.add_coupling(commander.o_cmd, ship12.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom12.i_cmd)
+        self.add_coupling(commander.o_cmd, ship21.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom21.i_cmd)
+        self.add_coupling(commander.o_cmd, ship22.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom22.i_cmd)
+        self.add_coupling(commander.o_cmd, fog1.i_cmd)
+        self.add_coupling(commander.o_cmd, fog2.i_cmd)
+        self.add_coupling(ship11.o_out, fusion11.i_Pos)
+        self.add_coupling(bloom11.o_out, fusion11.i_Blo)
+        self.add_coupling(ship12.o_out, fusion12.i_Pos)
+        self.add_coupling(bloom12.o_out, fusion12.i_Blo)
+        self.add_coupling(fusion11.o_out, fog1.get_in_port("i_" + fusion11.name))
+        self.add_coupling(fusion12.o_out, fog1.get_in_port("i_" + fusion12.name))
+        self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(ship21.o_out, fusion21.i_Pos)
+        self.add_coupling(bloom21.o_out, fusion21.i_Blo)
+        self.add_coupling(ship22.o_out, fusion22.i_Pos)
+        self.add_coupling(bloom22.o_out, fusion22.i_Blo)
+        self.add_coupling(fusion21.o_out, fog2.get_in_port("i_" + fusion21.name))
+        self.add_coupling(fusion22.o_out, fog2.get_in_port("i_" + fusion22.name))
+        self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+
+
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
     day = "20210801"
@@ -392,6 +474,16 @@ def test_commander():
     day = "20210801"
     coupled = ModelCommander("day_" + day, 'data/simulation-example.txt',
                              day=day, log=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate()
+    coord.exit()
+
+
+def test_outliers():
+    """Comprobamos el funcionamiento de los outliers."""
+    day = "20210801"
+    coupled = ModelOutliers("day_" + day, 'data/simulation-example.txt', day=day, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

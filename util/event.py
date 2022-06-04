@@ -26,6 +26,14 @@ class DataEventId(Enum):
   MEASUREMENT = "measurement"
   COMMAND = "command"
 
+# TODO: Para las columnas de cada evento:
+# Usar un diccionario donde la clave sea el DtaEventId y el valor sea la lista de campos
+# Encapsularlo en una clase
+# La descripción de los sensores (límites) estarán en SensorInfo
+# class DataEventColumns:
+#    diccionario
+#    get_columns(DataEventId)
+#    SensorInfo get_sensor_by_column(column)
 
 class EnergyEventId(Enum):
   '''Allowed energy events'''

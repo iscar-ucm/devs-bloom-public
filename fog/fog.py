@@ -133,8 +133,7 @@ class FogDb(Atomic):
 
         Ver el siguiente artículo: https://medium.com/analytics-vidhya/identifying-cleaning-and-replacing-outliers-titanic-dataset-20182a062893
 
-        TODO: De momento el procedimiento no es muy avanzado. Por ejemplo: Lat y Lon se deberían detectar de forma multivariable (simultánea),
-        teniendo en cuenta la distancia con los vecinos.
+        TODO: De momento el procedimiento no es muy avanzado. Por ejemplo: Lat y Lon se deberían detectar de forma multivariable (simultánea), teniendo en cuenta la distancia con los vecinos.
         """
         self.dcache[edge_device].fillna(0, inplace=True)
         # TODO: Estas columnas deberían estar en alguna clase:

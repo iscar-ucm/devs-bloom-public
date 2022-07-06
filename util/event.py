@@ -53,7 +53,7 @@ class DataEventColumns:
         return DataEventColumns.key_columns[data_event_id]
 
     @staticmethod
-    def get_data_columns(self, data_event_id: str):
+    def get_data_columns(data_event_id: str):
         """Devuelve las columnas de datos del evento especificado."""
         return DataEventColumns.data_columns[data_event_id]
 

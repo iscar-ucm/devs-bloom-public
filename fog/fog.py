@@ -135,8 +135,11 @@ class FogDb(Atomic):
 
         TODO: De momento el procedimiento no es muy avanzado. Por ejemplo: Lat y Lon se deberían detectar de forma multivariable (simultánea), teniendo en cuenta la distancia con los vecinos.
         """
-        self.dcache[edge_device].fillna(0, inplace=True)
-        # TODO: Estas columnas deberían estar en alguna clase:
+        # self.dcache[edge_device].fillna(0, inplace=True)
+        # La llamada anterior no funciona bien, porque al poner un 0 en los NaN, muchas veces no lo
+        # toma como un outlier.
+        print("dcache ANTES de la interpolación:")
+        print(self.dcache[edge_device].head(30))
         columns = DataEventColumns.get_data_columns(self.edge_data_ids[edge_device])
         whisker_width = 1.5
         for column in columns:
@@ -148,6 +151,8 @@ class FogDb(Atomic):
             self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] > upper_whisker, np.nan, self.dcache[edge_device][column])
             self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] < lower_whisker, np.nan, self.dcache[edge_device][column])
             self.dcache[edge_device][column] = self.dcache[edge_device][column].interpolate().ffill().bfill()
+            print("dcache DESPUÉS de la interpolación de la columna " + column)
+            print(self.dcache[edge_device].head(30))
         self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.dcache[edge_device]], ignore_index=True)
 
 

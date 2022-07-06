@@ -16,7 +16,7 @@ import datetime as dt
 from time import strftime, localtime
 from xdevs import get_logger
 from xdevs.models import Atomic, Coupled, Port
-from util.event import CommandEvent, CommandEventId, Event
+from util.event import CommandEvent, CommandEventId, Event, DataEventColumns
 # from dataclasses import dataclass, field
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -25,15 +25,18 @@ logger = get_logger(__name__, logging.DEBUG)
 class FogDb(Atomic):
     """Clase para guardar datos en la base de datos."""
 
-    def __init__(self, name: str, edge_devices: list, n_offset: int = 100):
+    def __init__(self, name: str, edge_devices: list, edge_data_ids: list, n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
         self.edge_devices = edge_devices
+        self.edge_data_ids = {}
         self.n_offset = n_offset
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
         # Puertos con los datos de barco y bloom fusionados.
-        for edge_device in edge_devices:
+        for i in range(0, len(self.edge_devices)):
+            edge_device = self.edge_devices[i]
+            self.edge_data_ids[edge_device] = edge_data_ids[i]
             self.add_in_port(Port(Event, "i_" + edge_device))
             self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
             self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
@@ -50,9 +53,9 @@ class FogDb(Atomic):
         for edge_device in self.edge_devices:
             # TODO: Necesitamos almacenar en algún sitio las columnas de cada edge_device. Ahora vale porque
             # todos son iguales, pero en un futuro no valdrá:
-            self.db_raw[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
-            self.db_mod[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
-            self.dcache[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
+            self.db_raw[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
+            self.db_mod[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
+            self.dcache[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
             self.pathraw[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_raw"
             self.pathmod[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_mod"
             # offset
@@ -85,7 +88,7 @@ class FogDb(Atomic):
             if self.counter[edge_device] == self.n_offset:
                 self.counter[edge_device] = 0
             if len(self.dcache[edge_device]) > 0:
-                self.dcache[edge_device] = pd.DataFrame(columns=["id", "source", "timestamp", "Lat", "Lon", "Depth", "DetB", "DetBb"])
+                self.dcache[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
         self.passivate()
 
     def deltext(self, e):
@@ -135,7 +138,7 @@ class FogDb(Atomic):
         """
         self.dcache[edge_device].fillna(0, inplace=True)
         # TODO: Estas columnas deberían estar en alguna clase:
-        columns = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
+        columns = DataEventColumns.get_data_columns(self.edge_data_ids[edge_device])
         whisker_width = 1.5
         for column in columns:
             q1 = self.dcache[edge_device][column].quantile(0.25)
@@ -152,7 +155,7 @@ class FogDb(Atomic):
 class FogServer(Coupled):
     """Clase acoplada FogServer."""
 
-    def __init__(self, name, edge_devices: list, n_offset: int = 100):
+    def __init__(self, name, edge_devices: list, edge_data_ids: list, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
         self.i_cmd = Port(CommandEvent, "i_cmd")
@@ -162,7 +165,7 @@ class FogServer(Coupled):
             self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
             self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
 
-        db = FogDb("FogDb", edge_devices, n_offset)
+        db = FogDb("FogDb", edge_devices, edge_data_ids, n_offset)
         self.add_component(db)
         self.add_coupling(self.i_cmd, db.i_cmd)
         for edge_device in edge_devices:

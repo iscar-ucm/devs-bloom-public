@@ -1,15 +1,19 @@
+"""Fichero que implementa clases de utilidad relacinada con los eventos."""
+
 import datetime as dt
 from dataclasses import dataclass, field
 from enum import Enum
 
+
 @dataclass
 class Event:
-  '''A message to model events'''
-  id: str
-  source: str
-  target: str = field(default=None)
-  timestamp: dt.datetime = field(default_factory=dt.datetime.now)
-  payload: dict = field(default_factory=dict)
+    """A message to model events."""
+
+    id: str
+    source: str
+    target: str = field(default=None)
+    timestamp: dt.datetime = field(default_factory=dt.datetime.now)
+    payload: dict = field(default_factory=dict)
 
 
 class DataEventId(Enum):
@@ -26,14 +30,38 @@ class DataEventId(Enum):
   MEASUREMENT = "measurement"
   COMMAND = "command"
 
-# TODO: Para las columnas de cada evento:
-# Usar un diccionario donde la clave sea el DtaEventId y el valor sea la lista de campos
-# Encapsularlo en una clase
-# La descripción de los sensores (límites) estarán en SensorInfo
-# class DataEventColumns:
-#    diccionario
-#    get_columns(DataEventId)
-#    SensorInfo get_sensor_by_column(column)
+
+class DataEventColumns:
+    """
+    Clase dedicada a hacer explícitas las columnas relacionadas con los eventos.
+
+    Tenemos por un lado las columnas que se consideran 'claves',
+    como si de una base de datos se tratase.
+
+    TODO: La descripción de los sensores (límites) estarán
+    en SensorInfo.
+    """
+
+    key_columns = {}
+    key_columns[DataEventId.POSBLOOM.value] = ["id", "source", "timestamp"]
+    data_columns = {}
+    data_columns[DataEventId.POSBLOOM.value] = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
+
+    @staticmethod
+    def get_key_columns(data_event_id: str):
+        """Devuelve las columnas clave del evento especificado."""
+        return DataEventColumns.key_columns[data_event_id]
+
+    @staticmethod
+    def get_data_columns(self, data_event_id: str):
+        """Devuelve las columnas de datos del evento especificado."""
+        return DataEventColumns.data_columns[data_event_id]
+
+    @staticmethod
+    def get_all_columns(data_event_id: str):
+        """Devuelve todas las columnas del evento especificado."""
+        return DataEventColumns.key_columns[data_event_id] + DataEventColumns.data_columns[data_event_id]
+
 
 class EnergyEventId(Enum):
   '''Allowed energy events'''

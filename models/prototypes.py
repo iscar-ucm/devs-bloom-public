@@ -356,7 +356,7 @@ class ModelOutliers(Coupled):
         ship12 = FileIn("ShipPos12", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
         bloom12 = FileIn("DetBlo12", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
         fusion12 = FussionPosBloom("EdgeFussion12")
-        fog1 = FogServer("FogServer1", [fusion11.name, fusion12.name])
+        fog1 = FogServer("FogServer1", [fusion11.name, fusion12.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
         # FOG SEVER 2: Masa de agua 2
         # UAV 21
         ship21 = FileIn("ShipPos21", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
@@ -366,7 +366,7 @@ class ModelOutliers(Coupled):
         ship22 = FileIn("ShipPos22", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
         bloom22 = FileIn("DetBlo22", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
         fusion22 = FussionPosBloom("EdgeFussion22")
-        fog2 = FogServer("FogServer2", [fusion21.name, fusion22.name])
+        fog2 = FogServer("FogServer2", [fusion21.name, fusion22.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
         # Capa Cloud:
         cloud = Cloud("Cloud", [DataEventId.POSBLOOM.name])
         self.add_component(commander)

@@ -229,50 +229,61 @@ if __name__ == "__main__":
 
 
 class FussionPosBloom(Atomic):
-  '''A model of edge data fussion'''
-   # Este se encarga de fusionar datos de Posición del barco y del Detector de Bloom
-  def __init__(self, name, log=False):        
-    super().__init__(name)
-    self.i_Pos = Port(Event, "i_Pos")
-    self.add_in_port(self.i_Pos)
-    self.i_Blo = Port(Event, "i_Blo")
-    self.add_in_port(self.i_Blo)
-    self.o_out = Port(Event, "o_out")
-    self.add_out_port(self.o_out)
-    
-    self.log=log
-    self.msg1 = None
-    self.msg2 = None
-    self.msg = None
+    """A model of edge data fussion."""
 
-  def initialize(self):
-    self.passivate()
-    
-  def exit(self):
-    pass
-		
-  def deltint(self):
-    self.passivate()
+    data_id = DataEventId.POSBLOOM
 
-  def deltext(self, e: Any):
-    in1 = self.i_Pos.get()
-    in2 = self.i_Blo.get()
-    if (in1!=None):self.msg1=in1
-    if (in2!=None):self.msg2=in2
-    #Espero a tener los tres datos
-    if (self.msg1!=None) & (self.msg2!=None):
-      #Ejemplo de mezcla de mensajes, 
-      # Concateno los dos PayLoads y tomo DateTime del primero
-      newpayload={**self.msg1.payload,**self.msg2.payload}   
-      self.msg=Event(id= DataEventId.POSBLOOM.value,source= self.name,timestamp=self.msg1.timestamp,payload=newpayload)
-      self.in1=None
-      self.in2=None
-      self.hold_in(PHASE_ACTIVE,0)
- 	
-  def lambdaf(self):
-      self.o_out.add(self.msg)
-      if self.log==True: 
-        logger.info("Fussin: %s Time: %s PAyLoad: %s" , self.name, self.msg.DateTime, self.msg.payload)
+    # Este se encarga de fusionar datos de Posición del barco y del Detector de Bloom
+    def __init__(self, name, log=False):
+        """Initialize attributes."""
+        super().__init__(name)
+        self.i_Pos = Port(Event, "i_Pos")
+        self.add_in_port(self.i_Pos)
+        self.i_Blo = Port(Event, "i_Blo")
+        self.add_in_port(self.i_Blo)
+        self.o_out = Port(Event, "o_out")
+        self.add_out_port(self.o_out)
+
+        self.log = log
+        self.msg1 = None
+        self.msg2 = None
+        self.msg = None
+
+    def initialize(self):
+        """Intialize the DEVS model."""
+        self.passivate()
+
+    def exit(self):
+        """Exit the simulation."""
+        pass
+
+    def deltint(self):
+        """Run the internal transition function."""
+        self.passivate()
+
+    def deltext(self, e: Any):
+        """Run the external transition function."""
+        in1 = self.i_Pos.get()
+        in2 = self.i_Blo.get()
+        if (in1 is not None):
+            self.msg1 = in1
+        if (in2 is not  None):
+            self.msg2 = in2
+        # Espero a tener los tres datos
+        if (self.msg1!=None) & (self.msg2!=None):
+            #Ejemplo de mezcla de mensajes, 
+            # Concateno los dos PayLoads y tomo DateTime del primero
+            newpayload = {**self.msg1.payload, **self.msg2.payload}
+            self.msg = Event(id=FussionPosBloom.data_id.value, source=self.name, timestamp=self.msg1.timestamp, payload=newpayload)
+            self.in1=None
+            self.in2=None
+            self.hold_in(PHASE_ACTIVE,0)
+
+    def lambdaf(self):
+        """Send data through the output ports."""
+        self.o_out.add(self.msg)
+        if self.log is True:
+            logger.info("Fussin: %s Time: %s PAyLoad: %s", self.name, self.msg.DateTime, self.msg.payload)
 
 
 class Test1(Coupled):

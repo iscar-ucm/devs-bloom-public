@@ -1,4 +1,4 @@
-from asyncio.windows_events import NULL
+# from asyncio.windows_events import NULL
 from cmath import inf
 from contextlib import nullcontext
 from xdevs import get_logger

@@ -4,7 +4,7 @@ from util.event import CommandEvent
 from xdevs.models import Atomic, Port
 
 
-class Commander(Atomic):
+class Generator(Atomic):
     """Clase para emular directivas de simulación."""
 
     def __init__(self, name: str, commands_path: str):

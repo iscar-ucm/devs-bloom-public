@@ -3,11 +3,13 @@
 from xdevs.models import Coupled
 import datetime as dt
 from xdevs.sim import Coordinator
-from edge.file import FileIn, FussionPosBloom
+from edge.file import FileIn, FileOut, FileInVar, FussionPosBloom
 from fog.fog import FogServer
 from cloud.cloud import Cloud
 from util.event import DataEventId
-from util.commander import Commander
+from util.commander import Generator
+from edge.body import SimBody4
+from edge.sensor import SimSensor3, SensorEventId, SensorInfo
 
 
 class Model_01(Coupled):
@@ -252,7 +254,7 @@ class ModelCommander(Coupled):
         """Función de inicialización."""
         super().__init__(name)
         # Commander
-        commander = Commander("Commander", commands_path)
+        commander = Generator("Commander", commands_path)
         # FOG SEVER 1: Masa de agua 1
         fog1 = FogServer("FogServer1", n_uav=2)
         # UAV 11
@@ -346,7 +348,7 @@ class ModelOutliers(Coupled):
         """Función de inicialización."""
         super().__init__(name)
         # Commander
-        commander = Commander("Commander", commands_path)
+        commander = Generator("Commander", commands_path)
         # FOG SEVER 1: Masa de agua 1
         # UAV 11
         ship11 = FileIn("ShipPos11", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
@@ -417,6 +419,80 @@ class ModelOutliers(Coupled):
         self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
 
 
+class ModelJournal(Coupled):
+    """Clase que implementa un modelo para el artículo de revista."""
+
+    def __init__(self, name: str, commands_path: str, simbody: SimBody4, log=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # Simulation file
+        generator = Generator("Commander", commands_path)
+        # FOG SEVER 1: Masa de agua 1
+        sensor_info_n = SensorInfo(id=SensorEventId.NITROGEN, description="Sonda de Nitrogeno", delay=0.4, max=0.5, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_o = SensorInfo(id=SensorEventId.OXIGEN, description="Sonda de Oxigeno", delay=0.6, max=10.0, min=0, precision=0.1, noisebias=0.01, noisesigma=0.01)
+        sensor_info_a = SensorInfo(id=SensorEventId.ALGA, description="Detector de Algas", delay=0.8, max=0.01, min=0, precision=0.001, noisebias=0.001, noisesigma=0.001)
+        # TODO: Hay que quitar la variable start, que se hace con el Commander
+        ask_sensor_n = FileInVar("Ask_N", './dataedge/Sweep2008_WQ_N.xlsx', dataid=SensorEventId.NITROGEN, log=log)
+        ask_sensor_o = FileInVar("Ask_O", './dataedge/Sweep2008_WQ_O.xlsx', dataid=SensorEventId.OXIGEN, log=log)
+        ask_sensor_a = FileInVar("Ask_A", './dataedge/Sweep2008_WQ_ALG.xlsx', dataid=SensorEventId.ALGA, log=log)
+        sensor_n = SimSensor3("SimSenN", simbody, sensor_info_n, log=log)
+        sensor_o = SimSensor3("SimSenO", simbody, sensor_info_o, log=log)
+        sensor_a = SimSensor3("SimSenA", simbody, sensor_info_a, log=log)
+        out_file = FileOut("Sensors2008Out", './dataedge/JoseleBorrar.xlsx', log=log)
+
+        # fog = FogServer("FogServer", [fusion11.name, fusion12.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
+        # Capa Cloud:
+        # cloud = Cloud("Cloud", [DataEventId.POSBLOOM.name])
+        self.add_component(generator)
+        self.add_component(ask_sensor_n)
+        self.add_component(ask_sensor_o)
+        self.add_component(ask_sensor_a)
+        self.add_component(sensor_n)
+        self.add_component(sensor_o)
+        self.add_component(sensor_a)
+        # self.add_component(fog)
+        ## self.add_component(cloud)
+        ## self.add_coupling(generator.o_cmd, ship11.i_cmd)
+        ## self.add_coupling(generator.o_cmd, bloom11.i_cmd)
+        ## self.add_coupling(generator.o_cmd, ship12.i_cmd)
+        ## self.add_coupling(generator.o_cmd, bloom12.i_cmd)
+        ## self.add_coupling(generator.o_cmd, ship21.i_cmd)
+        ## self.add_coupling(generator.o_cmd, bloom21.i_cmd)
+        ## self.add_coupling(generator.o_cmd, ship22.i_cmd)
+        ## self.add_coupling(generator.o_cmd, bloom22.i_cmd)
+        ## self.add_coupling(generator.o_cmd, fog1.i_cmd)
+        ## self.add_coupling(generator.o_cmd, fog2.i_cmd)
+        ## self.add_coupling(ship11.o_out, fusion11.i_Pos)
+        ## self.add_coupling(bloom11.o_out, fusion11.i_Blo)
+        ## self.add_coupling(ship12.o_out, fusion12.i_Pos)
+        ## self.add_coupling(bloom12.o_out, fusion12.i_Blo)
+        ## self.add_coupling(fusion11.o_out, fog1.get_in_port("i_" + fusion11.name))
+        ## self.add_coupling(fusion12.o_out, fog1.get_in_port("i_" + fusion12.name))
+        ## self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        ## self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        ## self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        ## self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        ## self.add_coupling(ship21.o_out, fusion21.i_Pos)
+        ## self.add_coupling(bloom21.o_out, fusion21.i_Blo)
+        ## self.add_coupling(ship22.o_out, fusion22.i_Pos)
+        ## self.add_coupling(bloom22.o_out, fusion22.i_Blo)
+        ## self.add_coupling(fusion21.o_out, fog2.get_in_port("i_" + fusion21.name))
+        ## self.add_coupling(fusion22.o_out, fog2.get_in_port("i_" + fusion22.name))
+        ## self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        ## self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        ## self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        ## self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_component(out_file)
+        self.add_coupling(generator.o_cmd, ask_sensor_n.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_o.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_a.i_cmd)
+        self.add_coupling(ask_sensor_n.o_out, sensor_n.i_in)
+        self.add_coupling(ask_sensor_o.o_out, sensor_o.i_in)
+        self.add_coupling(ask_sensor_a.o_out, sensor_a.i_in)
+        self.add_coupling(sensor_n.o_out, out_file.i_in)
+        self.add_coupling(sensor_o.o_out, out_file.i_in)
+        self.add_coupling(sensor_a.o_out, out_file.i_in)
+
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
     day = "20210801"
@@ -484,6 +560,18 @@ def test_outliers():
     """Comprobamos el funcionamiento de los outliers."""
     day = "20210801"
     coupled = ModelOutliers("day_" + day, 'data/simulation-example.txt', day=day, log=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate()
+    coord.exit()
+
+
+def test_journal():
+    """Comprobamos el modelo para el journal."""
+    bodyfile: str = './body/Washington-1d-2008-09-12_compr.nc'
+    myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
+    simbody: SimBody4 = SimBody4('SimWater', bodyfile, myvars)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=True)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

@@ -85,7 +85,7 @@ class CommandEventId(Enum):
 
 
 class CommandEvent:
-    """Clase para enviar mensajes del Commander al entorno de simulación."""
+    """Clase para enviar mensajes del Generator al entorno de simulación."""
 
     def __init__(self, date: dt.datetime = None, cmd: CommandEventId = None,
                  args: str = ''):

@@ -203,7 +203,7 @@ class SimSensor3(Atomic):
    
   def initialize(self):
     # Wait for a resquet
-    self.msgout=NULL
+    self.msgout = None
     self.passivate(self.PHASE_OFF)         #SENSOR OFF
     
   def exit(self):

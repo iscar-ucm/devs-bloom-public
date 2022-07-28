@@ -438,7 +438,7 @@ class ModelJournal(Coupled):
         sensor_n = SimSensor3("SimSenN", simbody, sensor_info_n, log=log)
         sensor_o = SimSensor3("SimSenO", simbody, sensor_info_o, log=log)
         sensor_a = SimSensor3("SimSenA", simbody, sensor_info_a, log=log)
-        out_file = FileOut("Sensors2008Out", './dataedge/JoseleBorrar.xlsx', log=log)
+        out_file = FileOut("Sensors2008Out", './dataedge/JoseleBorrar.csv', log=log)
 
         # fog = FogServer("FogServer", [fusion11.name, fusion12.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
         # Capa Cloud:
@@ -568,7 +568,7 @@ def test_outliers():
 
 def test_journal():
     """Comprobamos el modelo para el journal."""
-    bodyfile: str = './body/Washington-1d-2008-09-12_compr.nc'
+    bodyfile: str = '/POOL/data/devs-bloom/dataedge/Washington-1d-2008-09-12_compr.nc'
     myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
     simbody: SimBody4 = SimBody4('SimWater', bodyfile, myvars)
     coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=True)

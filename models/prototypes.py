@@ -428,19 +428,18 @@ class ModelJournal(Coupled):
         # Simulation file
         generator = Generator("Commander", commands_path)
         # FOG SEVER 1: Masa de agua 1
-        sensor_info_n = SensorInfo(id=SensorEventId.NITROGEN, description="Sonda de Nitrogeno", delay=0.4, max=0.5, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
-        sensor_info_o = SensorInfo(id=SensorEventId.OXIGEN, description="Sonda de Oxigeno", delay=0.6, max=10.0, min=0, precision=0.1, noisebias=0.01, noisesigma=0.01)
-        sensor_info_a = SensorInfo(id=SensorEventId.ALGA, description="Detector de Algas", delay=0.8, max=0.01, min=0, precision=0.001, noisebias=0.001, noisesigma=0.001)
-        # TODO: Hay que quitar la variable start, que se hace con el Commander
         ask_sensor_n = FileInVar("Ask_N", './dataedge/Sweep2008_WQ_N.xlsx', dataid=SensorEventId.NITROGEN, log=log)
         ask_sensor_o = FileInVar("Ask_O", './dataedge/Sweep2008_WQ_O.xlsx', dataid=SensorEventId.OXIGEN, log=log)
         ask_sensor_a = FileInVar("Ask_A", './dataedge/Sweep2008_WQ_ALG.xlsx', dataid=SensorEventId.ALGA, log=log)
+        sensor_info_n = SensorInfo(id=SensorEventId.NITROGEN, description="Sonda de Nitrogeno", delay=0.4, max=0.5, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_o = SensorInfo(id=SensorEventId.OXIGEN, description="Sonda de Oxigeno", delay=0.6, max=10.0, min=0, precision=0.1, noisebias=0.01, noisesigma=0.01)
+        sensor_info_a = SensorInfo(id=SensorEventId.ALGA, description="Detector de Algas", delay=0.8, max=0.01, min=0, precision=0.001, noisebias=0.001, noisesigma=0.001)
         sensor_n = SimSensor3("SimSenN", simbody, sensor_info_n, log=log)
         sensor_o = SimSensor3("SimSenO", simbody, sensor_info_o, log=log)
         sensor_a = SimSensor3("SimSenA", simbody, sensor_info_a, log=log)
         out_file = FileOut("Sensors2008Out", './dataedge/JoseleBorrar.csv', log=log)
 
-        # fog = FogServer("FogServer", [fusion11.name, fusion12.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
+        # fog = FogServer("FogServer", [sensor_n.name, sensor_o.name, sensor_a.name], [DataEventId.SIMSEN.value, DataEventId.SIMSEN.value, DataEventId.SIMSEN.value])
         # Capa Cloud:
         # cloud = Cloud("Cloud", [DataEventId.POSBLOOM.name])
         self.add_component(generator)
@@ -492,6 +491,7 @@ class ModelJournal(Coupled):
         self.add_coupling(sensor_n.o_out, out_file.i_in)
         self.add_coupling(sensor_o.o_out, out_file.i_in)
         self.add_coupling(sensor_a.o_out, out_file.i_in)
+
 
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
@@ -568,10 +568,10 @@ def test_outliers():
 
 def test_journal():
     """Comprobamos el modelo para el journal."""
-    bodyfile: str = '/POOL/data/devs-bloom/dataedge/Washington-1d-2008-09-12_compr.nc'
+    bodyfile: str = '/home/jlrisco/Borrar/Washington-1d-2008-09-12_compr.nc'
     myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
     simbody: SimBody4 = SimBody4('SimWater', bodyfile, myvars)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=True)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

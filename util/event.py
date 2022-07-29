@@ -17,18 +17,43 @@ class Event:
 
 
 class DataEventId(Enum):
-  '''Allowed data events'''
-  SIMSEN="SimSensor"
-  POS3D = "position"
-  LATLON = "latlon"
-  DEPTH = "depth"
-  TEMP = "temperature"
-  SUN = "sun"
-  BLOOM = "bloom"
-  POSBLOOM = "position&bloom"
-  DEFAULT = "default"
-  MEASUREMENT = "measurement"
-  COMMAND = "command"
+    """Allowed data events."""
+
+    SIMSEN = "SimSensor"
+    POS3D = "position"
+    LATLON = "latlon"
+    DEPTH = "depth"
+    TEMP = "temperature"
+    SUN = "sun"
+    BLOOM = "bloom"
+    POSBLOOM = "position&bloom"
+    DEFAULT = "default"
+    MEASUREMENT = "measurement"
+    COMMAND = "command"
+
+
+class EnergyEventId(Enum):
+    """Allowed energy events."""
+
+    POWER_ON = "power_on"
+    POWER_OFF = "power_off"
+    POWER_DEMAND = "power_demand"
+
+
+class SensorEventId(Enum):
+    """Allowed Sensor events acording to BodySim."""
+
+    OXIGEN = "WQ_O"
+    NITROGEN = "WQ_N"
+    ALGA = "WQ_ALG"
+
+
+class CommandEventId(Enum):
+    """Allowed commands."""
+
+    CMD_START_SIM = "START_SIM"
+    CMD_STOP_SIM = "STOP_SIM"
+    CMD_FIX_OUTLIERS = "FIX_OUTLIERS"
 
 
 class DataEventColumns:
@@ -44,8 +69,10 @@ class DataEventColumns:
 
     key_columns = {}
     key_columns[DataEventId.POSBLOOM.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.ALGA.value] = ["id", "source", "timestamp"]
     data_columns = {}
     data_columns[DataEventId.POSBLOOM.value] = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
+    data_columns[SensorEventId.ALGA.value] = ["Time", "Lat", "Lon", "Depth", "WQ_ALG", "Bt", "Bi", "Bj", "Bl"]
 
     @staticmethod
     def get_key_columns(data_event_id: str):
@@ -61,27 +88,6 @@ class DataEventColumns:
     def get_all_columns(data_event_id: str):
         """Devuelve todas las columnas del evento especificado."""
         return DataEventColumns.key_columns[data_event_id] + DataEventColumns.data_columns[data_event_id]
-
-
-class EnergyEventId(Enum):
-  '''Allowed energy events'''
-  POWER_ON = "power_on"
-  POWER_OFF = "power_off"
-  POWER_DEMAND = "power_demand"
-
-class SensorEventId(Enum):
-  '''Allowed Sensor events acording to BodySim'''
-  OXIGEN="WQ_O"
-  NITROGEN="WQ_N"
-  ALGA="WQ_ALG"
-
-
-class CommandEventId(Enum):
-    """Allowed commands."""
-
-    CMD_START_SIM = "START_SIM"
-    CMD_STOP_SIM = "STOP_SIM"
-    CMD_FIX_OUTLIERS = "FIX_OUTLIERS"
 
 
 class CommandEvent:

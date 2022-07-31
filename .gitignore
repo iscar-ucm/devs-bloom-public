@@ -154,3 +154,4 @@ setup.cfg
 # Mac OS
 .DS_Store
 body/Washington-1d-2008-09-12_compr.nc
+edge/Washington-1m-2008-09_UGRID.nc

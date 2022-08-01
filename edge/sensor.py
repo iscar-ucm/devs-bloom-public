@@ -238,7 +238,9 @@ class SimSensor3(Atomic):
        
   def lambdaf(self):
     if self.phase==self.PHASE_INIT:
-      self.o_out.add(self.msgout)
+      # TODO: (JOSELE) Comento esto porque si se envían dos mensajes distintos por el mismo puerto, tenemos un problema estructural.
+      # El FOG no distingue entre mensajes. Lo mejor sería tener un puerto específico destinado a enviar este mensaje.
+      # self.o_out.add(self.msgout)
       if self.log==True:  logger.info(self.msgout)
     if self.phase==self.PHASE_DONE:
       self.o_out.add(self.msgout)

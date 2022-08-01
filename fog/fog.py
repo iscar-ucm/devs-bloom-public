@@ -16,8 +16,8 @@ import datetime as dt
 from time import strftime, localtime
 from xdevs import get_logger
 from xdevs.models import Atomic, Coupled, Port
-from util.event import CommandEvent, CommandEventId, Event, DataEventColumns
-# from dataclasses import dataclass, field
+from util.view import Scope
+from util.event import CommandEvent, CommandEventId, Event, DataEventColumns, SensorEventId
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -178,3 +178,9 @@ class FogServer(Coupled):
             # EOC
             self.add_coupling(db.get_out_port("o_" + edge_device + "_raw"), self.get_out_port("o_" + edge_device + "_raw"))
             self.add_coupling(db.get_out_port("o_" + edge_device + "_mod"), self.get_out_port("o_" + edge_device + "_mod"))
+        # Nitrates scope
+        if SensorEventId.NITROGEN.value in edge_data_ids:
+            idx_n = edge_data_ids.index(SensorEventId.NITROGEN.value)
+            scope = Scope(edge_devices[idx_n], edge_data_ids[idx_n])
+            self.add_component(scope)
+            self.add_coupling(self.get_in_port("i_" + edge_devices[idx_n]), scope.i_in)

@@ -69,10 +69,14 @@ class DataEventColumns:
 
     key_columns = {}
     key_columns[DataEventId.POSBLOOM.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.OXIGEN.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.NITROGEN.value] = ["id", "source", "timestamp"]
     key_columns[SensorEventId.ALGA.value] = ["id", "source", "timestamp"]
     data_columns = {}
     data_columns[DataEventId.POSBLOOM.value] = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
-    data_columns[SensorEventId.ALGA.value] = ["Time", "Lat", "Lon", "Depth", "WQ_ALG", "Bt", "Bi", "Bj", "Bl"]
+    data_columns[SensorEventId.OXIGEN.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.OXIGEN.value, "Bt", "Bi", "Bj", "Bl"]
+    data_columns[SensorEventId.NITROGEN.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.NITROGEN.value, "Bt", "Bi", "Bj", "Bl"]
+    data_columns[SensorEventId.ALGA.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.ALGA.value, "Bt", "Bi", "Bj", "Bl"]
 
     @staticmethod
     def get_key_columns(data_event_id: str):

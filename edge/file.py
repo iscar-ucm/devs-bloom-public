@@ -162,6 +162,91 @@ class FileInVar(Atomic):
             # logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
             # logger.info(msg)
 
+class FileAskVar(Atomic):
+    """A file to ask SimSensor telemetries.
+    20220801 Modificado para que funcione con CSVs.
+
+    File example
+    DateTime	          Lat	        Lon	          Depth	        Sensor
+    2008-09-12 00:30:30	47,5	      -122,3	      0	            DOX
+    2008-09-12 00:31:30	47,50015983	-122,2999521	-0,010423905	NOX
+    """
+
+    def __init__(self, name, datafile, dataid=DataEventId.DEFAULT, log=False):
+        """Instancia la clase."""
+        super().__init__(name)
+        self.datafile = datafile
+        self.dataid = dataid
+        self.log = log
+        self.i_cmd = Port(CommandEvent, "i_cmd")
+        self.o_out = Port(Event, "o_out")
+        self.add_in_port(self.i_cmd)
+        self.add_out_port(self.o_out)
+
+    def initialize(self):
+        """Función de inicialización."""
+        # Let's read a value from excel
+        if self.datafile[-1] == 'x':
+            self.mydata = pd.read_excel(self.datafile, parse_dates=True)  # Sensor data loading
+            self.datetimes=self.mydata['DateTime']
+        if self.datafile[-1] == 'v':
+            self.mydata = pd.read_csv(self.datafile, parse_dates=True)  # Sensor data loading
+            self.datetimes = [dt.datetime.fromisoformat(s) for s in self.mydata['DateTime']] #Para CSVs
+        self.ind = -1
+        self.columns = self.mydata.columns
+        self.N = self.mydata.DateTime.count()
+        super().passivate()
+
+    def exit(self):
+        """Exit function."""
+        pass
+
+    def deltint(self):
+        """DEVS internal transition function."""
+        # Calcula delta tiempo hasta siguiente Telemetría
+        self.ind = self.ind + 1              # Actualizo indice a siguiente
+        if self.ind >= self.N:
+            self.passivate()
+        else:
+            delta = self.datetimes[self.ind] - self.datetimes[self.ind-1]
+            self.hold_in(PHASE_ACTIVE, delta.seconds)
+
+    def deltext(self, e: Any):
+        """DEVS external transition function."""
+        if (self.i_cmd.empty() is False):
+            cmd: CommandEvent = self.i_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_START_SIM:
+                start: np.datetime = cmd.date
+                delstart = [s-start for s in self.datetimes]
+                self.ind = round(np.nanargmin(np.absolute(delstart)))  # Nearest time index
+                delta = (self.datetimes[self.ind] - start).total_seconds()
+                if (delta >= 0):
+                    super().hold_in(PHASE_ACTIVE, delta)
+                elif (delta < 0)& (self.ind>0):
+                    self.ind = self.ind-1
+                    delta = (self.datetimes[self.ind] - start).total_seconds()
+                    super().hold_in(PHASE_ACTIVE, delta)
+                else:
+                    print('Error Start Time does not agree with FileInVar Times')
+                    super().passivate()
+                    
+            if cmd.cmd == CommandEventId.CMD_STOP_SIM:
+                super().passivate()
+
+    def lambdaf(self):
+        """DEVS output function."""
+        row = self.mydata.iloc[self.ind]   # Telemetría
+        payload = row.to_dict()
+        datetime = payload.pop('DateTime')
+        msg = Event(id=self.dataid.value, source=self.datafile, timestamp=datetime, payload=payload)
+        self.o_out.add(msg)
+        if self.log is True:
+            # logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], values)
+            logger.info("FileInVar: %s DateTime: %s Payload: %s", self.name, datetime, payload)
+            # logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
+            # logger.info(msg)
+
+
 
 class FileOut(Atomic):
   '''A model to store datatime-value-... messages on datafile if save=True'''

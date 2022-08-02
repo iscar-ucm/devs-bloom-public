@@ -42,11 +42,20 @@ class EnergyEventId(Enum):
 
 class SensorEventId(Enum):
     """Allowed Sensor events acording to BodySim."""
-
+    #Id: Old EEMS version
     OXIGEN = "WQ_O"
     NITROGEN = "WQ_N"
     ALGA = "WQ_ALG"
-
+    #Id: New EEMS-UGRID version
+    DOX = "DOX"     #Dissolved oxygen
+    NOX = "NOX"     #Nitrate nitrogen
+    ALG = "ALG"     #Algae 2 
+    SUN = "sun"     #Sun radiation
+    WTE = "temperature" #Water temperature
+    WFU = "U"       #Water East Flow
+    WFV = "W"       #Wind Nord Flow
+    WFX = "wind_x"  #Wind East Flow 
+    WFY = "wind_x"  #Wind East Flow 
 
 class CommandEventId(Enum):
     """Allowed commands."""

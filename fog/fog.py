@@ -25,49 +25,41 @@ logger = get_logger(__name__, logging.DEBUG)
 class FogDb(Atomic):
     """Clase para guardar datos en la base de datos."""
 
-    def __init__(self, name: str, edge_devices: list, edge_data_ids: list, n_offset: int = 100):
+    def __init__(self, name: str, thing_names: list, thing_event_ids: list, n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
-        self.edge_devices = edge_devices
-        self.edge_data_ids = {}
+        self.thing_names = thing_names
+        self.thing_event_ids = {}
         self.n_offset = n_offset
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
         # Puertos con los datos de barco y bloom fusionados.
-        for i in range(0, len(self.edge_devices)):
-            edge_device = self.edge_devices[i]
-            self.edge_data_ids[edge_device] = edge_data_ids[i]
-            self.add_in_port(Port(Event, "i_" + edge_device))
-            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
-            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
+        for i in range(0, len(self.thing_names)):
+            thing_name = thing_names[i]
+            self.thing_event_ids[thing_name] = thing_event_ids[i]
+            self.add_in_port(Port(Event, "i_" + thing_name))
+            self.add_out_port(Port(pd.DataFrame, "o_" + thing_name))
 
     def initialize(self):
         """Inicialización de la simulación DEVS."""
-        self.db_raw = {}
-        self.db_mod = {}
-        self.dcache = {}
-        self.pathraw = {}
-        self.pathmod = {}
+        self.db = {}
+        self.db_cache = {}
+        self.db_path = {}
         self.counter = {}
         time_mark = strftime("%Y%m%d%H%M%S", localtime())
-        for edge_device in self.edge_devices:
-            # TODO: Necesitamos almacenar en algún sitio las columnas de cada edge_device. Ahora vale porque
-            # todos son iguales, pero en un futuro no valdrá:
-            self.db_raw[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
-            self.db_mod[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
-            self.dcache[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
-            self.pathraw[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_raw"
-            self.pathmod[edge_device] = "data/" + self.parent.name + "." + edge_device + "_" + time_mark + "_mod"
+        for thing_name in self.thing_names:
+            self.db[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
+            self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
+            self.db_path[thing_name] = "data/" + self.parent.name + "." + thing_name + "_" + time_mark
             # offset
-            self.counter[edge_device] = 0
+            self.counter[thing_name] = 0
         self.passivate()
 
     def exit(self):
         """Función de salida de la simulación."""
         # Aquí tenemos que guardar la base de datos.
-        for edge_device in self.edge_devices:
-            self.db_raw[edge_device].to_csv(self.pathraw[edge_device] + ".csv")
-            self.db_mod[edge_device].to_csv(self.pathmod[edge_device] + ".csv")
+        for thing_name in self.thing_names:
+            self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
 
     def lambdaf(self):
         """
@@ -75,28 +67,26 @@ class FogDb(Atomic):
 
         De momento la comentamos para que no vaya trabajo al cloud.
         """
-        for edge_device in self.edge_devices:
-            if self.counter[edge_device] >= self.n_offset:
-                df = self.db_raw[edge_device].tail(self.n_offset)
-                self.get_out_port("o_" + edge_device + "_raw").add(df)
-            if len(self.dcache[edge_device]) > 0:
-                self.get_out_port("o_" + edge_device + "_mod").add(self.dcache[edge_device])
+        for thing_name in self.thing_names:
+            if self.counter[thing_name] >= self.n_offset:
+                df = self.db[thing_name].tail(self.n_offset)
+                self.get_out_port("o_" + thing_name).add(df)
 
     def deltint(self):
         """Función DEVS de transición interna."""
-        for edge_device in self.edge_devices:
-            if self.counter[edge_device] == self.n_offset:
-                self.counter[edge_device] = 0
-            if len(self.dcache[edge_device]) > 0:
-                self.dcache[edge_device] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[edge_device]))
+        for thing_name in self.thing_names:
+            if self.counter[thing_name] == self.n_offset:
+                self.counter[thing_name] = 0
+            if len(self.db_cache[thing_name]) > 0:
+                self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[thing_name]))
         self.passivate()
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
         self.continuef(e)
         # Procesamos todos los puertos:
-        for edge_device in self.edge_devices:
-            port = self.get_in_port("i_" + edge_device)
+        for thing_name in self.thing_names:
+            port = self.get_in_port("i_" + thing_name)
             if(port.empty() is False):
                 msg = port.get()
                 msg_list = list()
@@ -105,27 +95,28 @@ class FogDb(Atomic):
                 msg_list.append(msg.timestamp)
                 for value in msg.payload.values():
                     msg_list.append(value)
-                self.db_raw[edge_device].loc[len(self.db_raw[edge_device])] = msg_list
-                self.counter[edge_device] += 1
-            if self.counter[edge_device] == self.n_offset:
+                self.db[thing_name].loc[len(self.db[thing_name])] = msg_list
+                self.counter[thing_name] += 1
+            if self.counter[thing_name] == self.n_offset:
                 super().activate()
         if self.i_cmd.empty() is False:
             cmd: CommandEvent = self.i_cmd.get()
             if cmd.cmd == CommandEventId.CMD_FIX_OUTLIERS:
-                # Leemos los argumentos del comando
-                args = cmd.args.split(",")
-                if args[0] == self.parent.name:
-                    edge_device = args[1]
-                    init_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S')
-                    stop_interval = dt.datetime.strptime(args[3], '%Y-%m-%d %H:%M:%S\n')
-                    # Tengo que seleccionar los datos en el intervalo especificado:
-                    self.dcache[edge_device] = self.db_raw[edge_device][(self.db_raw[edge_device].timestamp >= init_interval) &
-                                                                        (self.db_raw[edge_device].timestamp <= stop_interval)]
-                    print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " + cmd.date.strftime("%Y/%m/%d %H:%M:%S")
-                          + " para detectar outliers de " + edge_device + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
-                          + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
-                    self.fit_outlayers(edge_device)
-                    super().activate()
+                logger.info("Command %s has been retired temporarily.", cmd.cmd.value)
+                ## # Leemos los argumentos del comando
+                ## args = cmd.args.split(",")
+                ## if args[0] == self.parent.name:
+                ##     thing_name = args[1]
+                ##     init_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S')
+                ##     stop_interval = dt.datetime.strptime(args[3], '%Y-%m-%d %H:%M:%S\n')
+                ##     # Tengo que seleccionar los datos en el intervalo especificado:
+                ##     self.db_cache[thing_name] = self.db_raw[thing_name][(self.db_raw[thing_name].timestamp >= init_interval) &
+                ##                                                         (self.db_raw[thing_name].timestamp <= stop_interval)]
+                ##     print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " + cmd.date.strftime("%Y/%m/%d %H:%M:%S")
+                ##           + " para detectar outliers de " + thing_name + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
+                ##           + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
+                ##     self.fit_outlayers(thing_name)
+                ##     super().activate()
 
     def fit_outlayers(self, edge_device):
         """
@@ -139,48 +130,46 @@ class FogDb(Atomic):
         # La llamada anterior no funciona bien, porque al poner un 0 en los NaN, muchas veces no lo
         # toma como un outlier.
         print("dcache ANTES de la interpolación:")
-        print(self.dcache[edge_device].head(30))
+        print(self.db_cache[edge_device].head(30))
         columns = DataEventColumns.get_data_columns(self.edge_data_ids[edge_device])
         whisker_width = 1.5
         for column in columns:
-            q1 = self.dcache[edge_device][column].quantile(0.25)
-            q3 = self.dcache[edge_device][column].quantile(0.75)
+            q1 = self.db_cache[edge_device][column].quantile(0.25)
+            q3 = self.db_cache[edge_device][column].quantile(0.75)
             iqr = q3 - q1
             lower_whisker = q1 - whisker_width*iqr
             upper_whisker = q3 + whisker_width*iqr
-            self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] > upper_whisker, np.nan, self.dcache[edge_device][column])
-            self.dcache[edge_device][column] = np.where(self.dcache[edge_device][column] < lower_whisker, np.nan, self.dcache[edge_device][column])
-            self.dcache[edge_device][column] = self.dcache[edge_device][column].interpolate().ffill().bfill()
+            self.db_cache[edge_device][column] = np.where(self.db_cache[edge_device][column] > upper_whisker, np.nan, self.db_cache[edge_device][column])
+            self.db_cache[edge_device][column] = np.where(self.db_cache[edge_device][column] < lower_whisker, np.nan, self.db_cache[edge_device][column])
+            self.db_cache[edge_device][column] = self.db_cache[edge_device][column].interpolate().ffill().bfill()
             print("dcache DESPUÉS de la interpolación de la columna " + column)
-            print(self.dcache[edge_device].head(30))
-        self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.dcache[edge_device]], ignore_index=True)
+            print(self.db_cache[edge_device].head(30))
+        self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.db_cache[edge_device]], ignore_index=True)
 
 
 class FogServer(Coupled):
     """Clase acoplada FogServer."""
 
-    def __init__(self, name, edge_devices: list, edge_data_ids: list, n_offset: int = 100):
+    def __init__(self, name, thing_names: list, thing_event_ids: list, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
-        for edge_device in edge_devices:
-            self.add_in_port(Port(Event, "i_" + edge_device))
-            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_raw"))
-            self.add_out_port(Port(pd.DataFrame, "o_" + edge_device + "_mod"))
+        for thing_name in thing_names:
+            self.add_in_port(Port(Event, "i_" + thing_name))
+            self.add_out_port(Port(pd.DataFrame, "o_" + thing_name))
 
-        db = FogDb("FogDb", edge_devices, edge_data_ids, n_offset)
+        db = FogDb("FogDb", thing_names, thing_event_ids, n_offset)
         self.add_component(db)
         self.add_coupling(self.i_cmd, db.i_cmd)
-        for edge_device in edge_devices:
+        for thing_name in thing_names:
             # EIC
-            self.add_coupling(self.get_in_port("i_" + edge_device), db.get_in_port("i_" + edge_device))
+            self.add_coupling(self.get_in_port("i_" + thing_name), db.get_in_port("i_" + thing_name))
             # EOC
-            self.add_coupling(db.get_out_port("o_" + edge_device + "_raw"), self.get_out_port("o_" + edge_device + "_raw"))
-            self.add_coupling(db.get_out_port("o_" + edge_device + "_mod"), self.get_out_port("o_" + edge_device + "_mod"))
+            self.add_coupling(db.get_out_port("o_" + thing_name), self.get_out_port("o_" + thing_name))
         # Nitrates scope
-        if SensorEventId.NITROGEN.value in edge_data_ids:
-            idx_n = edge_data_ids.index(SensorEventId.NITROGEN.value)
-            scope = Scope(edge_devices[idx_n], edge_data_ids[idx_n])
+        if SensorEventId.NOX.value in thing_event_ids:
+            idx_n = thing_event_ids.index(SensorEventId.NOX.value)
+            scope = Scope(thing_names[idx_n], thing_event_ids[idx_n])
             self.add_component(scope)
-            self.add_coupling(self.get_in_port("i_" + edge_devices[idx_n]), scope.i_in)
+            self.add_coupling(self.get_in_port("i_" + thing_names[idx_n]), scope.i_in)

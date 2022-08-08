@@ -1,4 +1,6 @@
 """Módulo creado por José Luis para realizar pruebas."""
+
+
 import models.prototypes
 
 # Prueba para comprobar el archivo de comandos.

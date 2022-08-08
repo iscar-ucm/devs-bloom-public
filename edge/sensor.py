@@ -296,6 +296,8 @@ class SimSensor5(Atomic):
         self.add_in_port(self.i_in)         
         self.o_out = Port(Event, "o_out")   #Event includes the measurements
         self.add_out_port(self.o_out)
+        self.o_info = Port(Event, "o_info")   #Event includes the info
+        self.add_out_port(self.o_info)
         self.simbody=simbody                #Simulated Body in NetHFC4 format
         self.sensorinfo=sensorinfo          #The measurement takes delay seconds. 
     
@@ -339,7 +341,7 @@ class SimSensor5(Atomic):
           
     def lambdaf(self):
         if self.phase==self.PHASE_INIT:
-            self.o_out.add(self.msgout)
+            self.o_info.add(self.msgout)
             if self.log==True:  logger.info(self.msgout)
         if self.phase==self.PHASE_DONE:
             self.o_out.add(self.msgout)

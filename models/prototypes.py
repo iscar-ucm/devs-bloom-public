@@ -3,13 +3,13 @@
 from xdevs.models import Coupled
 import datetime as dt
 from xdevs.sim import Coordinator
-from edge.file import FileIn, FileOut, FileInVar, FussionPosBloom
+from edge.file import FileIn, FileAskVar, FileOut, FussionPosBloom
 from fog.fog import FogServer
 from cloud.cloud import Cloud
 from util.event import DataEventId
 from util.commander import Generator
-from edge.body import SimBody4
-from edge.sensor import SimSensor3, SensorEventId, SensorInfo
+from edge.body import SimBody5
+from edge.sensor import SimSensor5, SensorEventId, SensorInfo
 
 
 class Model_01(Coupled):
@@ -420,50 +420,101 @@ class ModelOutliers(Coupled):
 
 
 class ModelJournal(Coupled):
-    """Clase que implementa un modelo para el artículo de revista."""
+    """Clase que implementa un modelo de la pila IoT como entidad virtual."""
 
-    def __init__(self, name: str, commands_path: str, simbody: SimBody4, log=False):
+    def __init__(self, name: str, commands_path: str, simbody: SimBody5, log=False):
         """Función de inicialización."""
         super().__init__(name)
         # Simulation file
         generator = Generator("Commander", commands_path)
         # FOG SEVER 1: Masa de agua 1
-        ask_sensor_n = FileInVar("Ask_N", './dataedge/Sweep2008_WQ_N.xlsx', dataid=SensorEventId.NITROGEN, log=log)
-        ask_sensor_o = FileInVar("Ask_O", './dataedge/Sweep2008_WQ_O.xlsx', dataid=SensorEventId.OXIGEN, log=log)
-        ask_sensor_a = FileInVar("Ask_A", './dataedge/Sweep2008_WQ_ALG.xlsx', dataid=SensorEventId.ALGA, log=log)
-        sensor_info_n = SensorInfo(id=SensorEventId.NITROGEN, description="Sonda de Nitrogeno", delay=0.4, max=0.5, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
-        sensor_info_o = SensorInfo(id=SensorEventId.OXIGEN, description="Sonda de Oxigeno", delay=0.6, max=10.0, min=0, precision=0.1, noisebias=0.01, noisesigma=0.01)
-        sensor_info_a = SensorInfo(id=SensorEventId.ALGA, description="Detector de Algas", delay=0.8, max=0.01, min=0, precision=0.001, noisebias=0.001, noisesigma=0.001)
-        sensor_n = SimSensor3("SimSenN", simbody, sensor_info_n, log=log)
-        sensor_o = SimSensor3("SimSenO", simbody, sensor_info_o, log=log)
-        sensor_a = SimSensor3("SimSenA", simbody, sensor_info_a, log=log)
-        out_file = FileOut("Sensors2008Out", './dataedge/JoseleBorrar.csv', log=log)
+        ask_sensor_n = FileAskVar("Ask_N", './dataedge/Sensor2008_NOX.csv', dataid=SensorEventId.NOX, log=log)
+        ask_sensor_o = FileAskVar("Ask_O", './dataedge/Sensor2008_DOX.csv', dataid=SensorEventId.DOX, log=log)
+        ask_sensor_a = FileAskVar("Ask_A", './dataedge/Sensor2008_ALG.csv', dataid=SensorEventId.ALG, log=log)
+        ask_sensor_t = FileAskVar("Ask_T", './dataedge/Sensor2008_temperature.csv', dataid=SensorEventId.WTE, log=log)
+        ask_sensor_u = FileAskVar("Ask_U", './dataedge/Sensor2008_U.csv', dataid=SensorEventId.WFU, log=log)
+        ask_sensor_v = FileAskVar("Ask_V", './dataedge/Sensor2008_V.csv', dataid=SensorEventId.WFV, log=log)
+        ask_sensor_s = FileAskVar("Ask_S", './dataedge/Sensor2008_sun.csv', dataid=SensorEventId.SUN, log=log)
+        ask_sensor_x = FileAskVar("Ask_X", './dataedge/Sensor2008_wind_x.csv', dataid=SensorEventId.WFX, log=log)
+        ask_sensor_y = FileAskVar("Ask_Y", './dataedge/Sensor2008_wind_y.csv', dataid=SensorEventId.WFY, log=log)
+        sensor_info_n = SensorInfo(id=SensorEventId.NOX, description="Nitrogen sensor (mg/L)", delay=6, max=0.5, min=0.0, precision=0.1, noisebias=0.01, noisesigma=0.001)
+        sensor_info_o = SensorInfo(id=SensorEventId.DOX, description="Oxigen sensor (mg/L)", delay=5, max=30.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
+        sensor_info_a = SensorInfo(id=SensorEventId.ALG, description="Algae detector (mg/L)", delay=7, max=15.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
+        sensor_info_t = SensorInfo(id=SensorEventId.WTE, description="Water temperature sensor (ºC)", delay=4, max=30, min=0, precision=0.1, noisebias=0.01, noisesigma=0.1)
+        sensor_info_u = SensorInfo(id=SensorEventId.WFU, description="East water flow (m/s)", delay=4, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_v = SensorInfo(id=SensorEventId.WFV, description="Nord water flow (m/s)", delay=4, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_s = SensorInfo(id=SensorEventId.SUN, description="Sun radiation (n.u.)", delay=2, max=1.0, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_x = SensorInfo(id=SensorEventId.WFX, description="East wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_y = SensorInfo(id=SensorEventId.WFY, description="Nord wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log=log)
+        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log=log)
+        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log=log)
+        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log=log)
+        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log=log)
+        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log=log)
+        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log=log)
+        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log=log)
+        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log=log)
+        thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
+                       sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]
+        thing_event_ids = [sensor_info_n.id.value, sensor_info_o.id.value, sensor_info_a.id.value,
+                           sensor_info_t.id.value, sensor_info_u.id.value, sensor_info_v.id.value,
+                           sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
 
-        fog = FogServer("FogServer", [sensor_n.name, sensor_o.name, sensor_a.name], [SensorEventId.NITROGEN.value, SensorEventId.OXIGEN.value, SensorEventId.ALGA.value])
+        # TODO: Complete the FogServer definition
+        fog = FogServer("FogServer", thing_names, thing_event_ids)
         # Capa Cloud:
         # cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name])
+        # Components:
         self.add_component(generator)
         self.add_component(ask_sensor_n)
         self.add_component(ask_sensor_o)
         self.add_component(ask_sensor_a)
+        self.add_component(ask_sensor_t)
+        self.add_component(ask_sensor_u)
+        self.add_component(ask_sensor_v)
+        self.add_component(ask_sensor_s)
+        self.add_component(ask_sensor_x)
+        self.add_component(ask_sensor_y)
         self.add_component(sensor_n)
         self.add_component(sensor_o)
         self.add_component(sensor_a)
-        self.add_component(out_file)
+        self.add_component(sensor_t)
+        self.add_component(sensor_u)
+        self.add_component(sensor_v)
+        self.add_component(sensor_s)
+        self.add_component(sensor_x)
+        self.add_component(sensor_y)
+        self.add_component(fog)
+        # Coupling relations:
         self.add_coupling(generator.o_cmd, ask_sensor_n.i_cmd)
         self.add_coupling(generator.o_cmd, ask_sensor_o.i_cmd)
         self.add_coupling(generator.o_cmd, ask_sensor_a.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_t.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_u.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_v.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_s.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_x.i_cmd)
+        self.add_coupling(generator.o_cmd, ask_sensor_y.i_cmd)
+        self.add_coupling(generator.o_cmd, fog.i_cmd)
         self.add_coupling(ask_sensor_n.o_out, sensor_n.i_in)
         self.add_coupling(ask_sensor_o.o_out, sensor_o.i_in)
         self.add_coupling(ask_sensor_a.o_out, sensor_a.i_in)
-        self.add_coupling(sensor_n.o_out, out_file.i_in)
-        self.add_coupling(sensor_o.o_out, out_file.i_in)
-        self.add_coupling(sensor_a.o_out, out_file.i_in)
-        self.add_component(fog)
-        self.add_coupling(generator.o_cmd, fog.i_cmd)
+        self.add_coupling(ask_sensor_t.o_out, sensor_t.i_in)
+        self.add_coupling(ask_sensor_u.o_out, sensor_u.i_in)
+        self.add_coupling(ask_sensor_v.o_out, sensor_v.i_in)
+        self.add_coupling(ask_sensor_s.o_out, sensor_s.i_in)
+        self.add_coupling(ask_sensor_x.o_out, sensor_x.i_in)
+        self.add_coupling(ask_sensor_y.o_out, sensor_y.i_in)
         self.add_coupling(sensor_n.o_out, fog.get_in_port("i_" + sensor_n.name))
         self.add_coupling(sensor_o.o_out, fog.get_in_port("i_" + sensor_o.name))
         self.add_coupling(sensor_a.o_out, fog.get_in_port("i_" + sensor_a.name))
+        self.add_coupling(sensor_t.o_out, fog.get_in_port("i_" + sensor_t.name))
+        self.add_coupling(sensor_u.o_out, fog.get_in_port("i_" + sensor_u.name))
+        self.add_coupling(sensor_v.o_out, fog.get_in_port("i_" + sensor_v.name))
+        self.add_coupling(sensor_s.o_out, fog.get_in_port("i_" + sensor_s.name))
+        self.add_coupling(sensor_x.o_out, fog.get_in_port("i_" + sensor_x.name))
+        self.add_coupling(sensor_y.o_out, fog.get_in_port("i_" + sensor_y.name))
         ## self.add_component(cloud)
         ## self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
         ## self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
@@ -547,9 +598,9 @@ def test_outliers():
 
 def test_journal():
     """Comprobamos el modelo para el journal."""
-    bodyfile: str = '/home/jlrisco/Borrar/Washington-1d-2008-09-12_compr.nc'
+    bodyfile: str = '/home/jlrisco/Borrar/Washington-1m-2008-09_UGRID.nc'
     myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
-    simbody: SimBody4 = SimBody4('SimWater', bodyfile, myvars)
+    simbody: SimBody5 = SimBody5('SimWater', bodyfile, myvars)
     coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()

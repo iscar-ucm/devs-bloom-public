@@ -57,6 +57,7 @@ class SensorEventId(Enum):
     WFX = "wind_x"  #Wind East Flow 
     WFY = "wind_x"  #Wind East Flow 
 
+
 class CommandEventId(Enum):
     """Allowed commands."""
 
@@ -81,11 +82,29 @@ class DataEventColumns:
     key_columns[SensorEventId.OXIGEN.value] = ["id", "source", "timestamp"]
     key_columns[SensorEventId.NITROGEN.value] = ["id", "source", "timestamp"]
     key_columns[SensorEventId.ALGA.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.NOX.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.DOX.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.ALG.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.WTE.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.WFU.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.WFV.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.SUN.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.WFX.value] = ["id", "source", "timestamp"]
+    key_columns[SensorEventId.WFY.value] = ["id", "source", "timestamp"]
     data_columns = {}
     data_columns[DataEventId.POSBLOOM.value] = ["Lat", "Lon", "Depth", "DetB", "DetBb"]
     data_columns[SensorEventId.OXIGEN.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.OXIGEN.value, "Bt", "Bi", "Bj", "Bl"]
     data_columns[SensorEventId.NITROGEN.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.NITROGEN.value, "Bt", "Bi", "Bj", "Bl"]
     data_columns[SensorEventId.ALGA.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.ALGA.value, "Bt", "Bi", "Bj", "Bl"]
+    data_columns[SensorEventId.NOX.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.NOX.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.DOX.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.DOX.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.ALG.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.ALG.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.WTE.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.WTE.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.WFU.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.WFU.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.WFV.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.WFV.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.SUN.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.SUN.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.WFX.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.WFX.value, "Bt", "Bij", "Bl"]
+    data_columns[SensorEventId.WFY.value] = ["Time", "Lat", "Lon", "Depth", SensorEventId.WFY.value, "Bt", "Bij", "Bl"]
 
     @staticmethod
     def get_key_columns(data_event_id: str):
@@ -120,3 +139,7 @@ class CommandEvent:
         self.cmd = CommandEventId[parts[1]]
         if(len(parts) > 2):
             self.args = parts[2]
+
+    def str(self):
+        """Return a string representation of this object."""
+        return self.date.strftime('%Y-%m-%d %H:%M:%S') + ";" + self.cmd.value

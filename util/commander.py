@@ -1,7 +1,11 @@
 """Clase que se encarga de enviar comandos al simulador."""
 
+import logging
+from xdevs import get_logger
 from util.event import CommandEvent
 from xdevs.models import Atomic, Port
+
+logger = get_logger(__name__, logging.INFO)
 
 
 class Generator(Atomic):
@@ -49,6 +53,7 @@ class Generator(Atomic):
 
     def lambdaf(self):
         """Función de salida."""
+        logger.info("%s::%s -> %s", self.name, self.o_cmd.name, self.curr_input.str())
         self.o_cmd.add(self.curr_input)
 
     def get_next_input(self):

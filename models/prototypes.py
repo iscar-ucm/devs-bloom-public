@@ -598,7 +598,7 @@ def test_outliers():
 
 def test_journal():
     """Comprobamos el modelo para el journal."""
-    bodyfile: str = '/home/jlrisco/Borrar/Washington-1m-2008-09_UGRID.nc'
+    bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
     simbody: SimBody5 = SimBody5('SimWater', bodyfile, myvars)
     coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=False)

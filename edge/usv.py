@@ -280,6 +280,72 @@ class USVFactory:
     return usv
 
 
+
+class USV_Simple(Atomic):
+
+ def __init__(self, name):
+        """Instancia la clase."""
+        super().__init__(name)
+
+        # self.i_cmd = Port(CommandEvent, "i_cmd")?
+        # Puertos de entrada/salida
+        self.o_out = Port(Event, "o_out")
+        self.add_in_port(self.i_cmd)
+        self.add_out_port(self.o_out)
+
+    def initialize(self):
+        """Función de inicialización."""
+        # Let's read a value from excel
+        if self.datafile[-1] == 'x':
+            self.mydata = pd.read_excel(self.datafile, parse_dates=True)  # Sensor data loading
+            self.datetimes=self.mydata['DateTime']
+        if self.datafile[-1] == 'v':
+            self.mydata = pd.read_csv(self.datafile, parse_dates=True)  # Sensor data loading
+            self.datetimes = [dt.datetime.fromisoformat(s) for s in self.mydata['DateTime']] #Para CSVs
+        self.ind = -1
+        self.columns = self.mydata.columns
+        self.N = self.mydata.DateTime.count()
+        super().passivate()
+
+    def exit(self):
+        """Exit function."""
+        pass
+
+    def deltint(self):
+        """DEVS internal transition function."""
+        # Calcula delta tiempo hasta siguiente Telemetría
+        self.ind = self.ind + 1              # Actualizo indice a siguiente
+        if self.ind >= self.N:
+            self.passivate()
+        else:
+            delta = self.datetimes[self.ind] - self.datetimes[self.ind-1]
+            self.hold_in(PHASE_ACTIVE, delta.seconds)
+
+    def deltext(self, e: Any):
+        """DEVS external transition function."""
+        if self.phase==self.PHASE_OFF:
+            self.msgin = self.i_in.get()
+            self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
+            self.hold_in(self.PHASE_INIT,0)
+        elif self.phase==self.PHASE_ON:
+            self.msgin = self.i_in.get()
+            self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
+
+    def lambdaf(self):
+        """DEVS output function."""
+        row = self.mydata.iloc[self.ind]   # Telemetría
+        payload = row.to_dict()
+        datetime = payload.pop('DateTime')
+        msg = Event(id=self.dataid.value, source=self.datafile, timestamp=datetime, payload=payload)
+        self.o_out.add(msg)
+        if self.log is True:
+            # logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], values)
+            logger.info("FileInVar: %s DateTime: %s Payload: %s", self.name, datetime, payload)
+            # logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
+            # logger.info(msg)
+
+
+
 class TestInput(Atomic):
   '''A test input generator to test USV'''
 

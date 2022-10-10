@@ -282,67 +282,83 @@ class USVFactory:
 
 
 class USV_Simple(Atomic):
+  PHASE_OFF = "off"         #Standby, wating for a resquet
+  PHASE_INIT = "init"       #Send SensorInfo
+  PHASE_ON = "on"           #Initialited, wating for a resquet
+  PHASE_WORK = "work"       #Taking a measurement
+  PHASE_DONE = "done"       #Send Measurement
 
- def __init__(self, name):
+  def __init__(self, name,delay:float):
         """Instancia la clase."""
         super().__init__(name)
 
-        # self.i_cmd = Port(CommandEvent, "i_cmd")?
+        self.delay = delay
         # Puertos de entrada/salida
         self.o_out = Port(Event, "o_out")
-        self.add_in_port(self.i_cmd)
+        self.i_in = Port(Event, "i_in")
+        self.add_in_port(self.i_in)
+        self.o_out = Port(Event, "o_out")
         self.add_out_port(self.o_out)
+        self.o_info = Port(Event, "o_info")
+        self.add_out_port(self.o_info)
+  
+  def initialize(self):
+        # Wait for a resquet
+        inidt=datetime()
+        deltat=days(1)
+        dt=inidt+time*deltat
+        hours=hour(dt);
 
-    def initialize(self):
-        """Función de inicialización."""
-        # Let's read a value from excel
-        if self.datafile[-1] == 'x':
-            self.mydata = pd.read_excel(self.datafile, parse_dates=True)  # Sensor data loading
-            self.datetimes=self.mydata['DateTime']
-        if self.datafile[-1] == 'v':
-            self.mydata = pd.read_csv(self.datafile, parse_dates=True)  # Sensor data loading
-            self.datetimes = [dt.datetime.fromisoformat(s) for s in self.mydata['DateTime']] #Para CSVs
-        self.ind = -1
-        self.columns = self.mydata.columns
-        self.N = self.mydata.DateTime.count()
-        super().passivate()
-
-    def exit(self):
-        """Exit function."""
+        self.msgout = None
+        self.lyr = 55
+        self.x0 = [0,0,0,0]
+        self.tau = 100
+        self.passivate(self.PHASE_OFF)         #SENSOR OFF
+      
+  def exit(self):
+        self.passivate(self.PHASE_OFF)         #SENSOR OFF
         pass
-
-    def deltint(self):
-        """DEVS internal transition function."""
-        # Calcula delta tiempo hasta siguiente Telemetría
-        self.ind = self.ind + 1              # Actualizo indice a siguiente
-        if self.ind >= self.N:
-            self.passivate()
-        else:
-            delta = self.datetimes[self.ind] - self.datetimes[self.ind-1]
-            self.hold_in(PHASE_ACTIVE, delta.seconds)
-
-    def deltext(self, e: Any):
-        """DEVS external transition function."""
+        
+  def deltint(self):
+        if self.phase==self.PHASE_INIT:
+            self.hold_in(self.PHASE_WORK,self.delay)
+        elif self.phase==self.PHASE_WORK:             
+            # Paránetros de entrada: Time, Lat, Lon, Depth, XDel, Algae(?)
+            myt     = self.msg.payload['Time']                 
+            mylat   = self.msg.payload['Lat']
+            mylon   = self.msg.payload['Lon']
+            mydepth = self.msg.payload['Depth']
+            mydelx  = self.msg.payload['Xdel']   
+            myalg   = self.msg.payload['Algae'] 
+            # Procesado del mensaje de salida
+            if self.hour(self.tau) == 0:
+              x = x0;
+              self.bloom = False
+              self.vtemp = []
+              self.vhour = []
+            self.datetime=dt.datetime.fromisoformat(self.msg.timestamp)+dt.timedelta(seconds=self.delay)
+            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx, 'Algae': myalg}
+            self.msgout=Event(id=self.msg.id,source=self.name,timestamp=self.datetime,payload=data)
+            self.hold_in(self.PHASE_DONE,0)
+        elif self.phase==self.PHASE_DONE:
+            self.passivate(self.PHASE_ON)
+      
+  def deltext(self, e: Any):
         if self.phase==self.PHASE_OFF:
             self.msgin = self.i_in.get()
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
             self.hold_in(self.PHASE_INIT,0)
         elif self.phase==self.PHASE_ON:
             self.msgin = self.i_in.get()
-            self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
-
-    def lambdaf(self):
-        """DEVS output function."""
-        row = self.mydata.iloc[self.ind]   # Telemetría
-        payload = row.to_dict()
-        datetime = payload.pop('DateTime')
-        msg = Event(id=self.dataid.value, source=self.datafile, timestamp=datetime, payload=payload)
-        self.o_out.add(msg)
-        if self.log is True:
-            # logger.info("FileIn: %s DateTime: %s Payload: %s" , self.name, datetime[0], values)
-            logger.info("FileInVar: %s DateTime: %s Payload: %s", self.name, datetime, payload)
-            # logger.info("FileIn: %s DateTime: %s" , self.name, datetime)
-            # logger.info(msg)
+            self.hold_in(self.PHASE_WORK,self.delay)
+          
+  def lambdaf(self):
+        if self.phase==self.PHASE_INIT:
+            self.o_info.add(self.msgout)
+            if self.log==True:  logger.info(self.msgout)
+        if self.phase==self.PHASE_DONE:
+            self.o_out.add(self.msgout)
+            if self.log==True:  logger.info(self.msgout)
 
 
 

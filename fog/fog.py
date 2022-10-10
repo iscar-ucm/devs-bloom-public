@@ -34,6 +34,17 @@ class GCS(Atomic):
         self.n_offset = n_offset
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
+
+        # Puerto de entrada del USV
+        self.i_usv = Port(Event, "i_" + usv1.name)
+        self.add_in_port(self.i_usv)
+        # Puerto de salida para la Servicio de Inferencia
+        self.o_IS = Port(Event, "o_IS")
+        self.add_out_port(self.o_IS)
+        # Pueto de salida para el USV planner
+        self.o_usvp = Port(Event, "o_usvp")
+        self.add_out_port(self.o_usvp)
+
         # Puertos con los datos de barco y bloom fusionados.
         for i in range(0, len(self.thing_names)):
             thing_name = thing_names[i]
@@ -43,6 +54,7 @@ class GCS(Atomic):
 
     def initialize(self):
         """Inicialización de la simulación DEVS."""
+        self.msgout = None
         self.gcs = {}
         self.gcs_cache = {}
         self.gcs_path = {}
@@ -73,6 +85,9 @@ class GCS(Atomic):
                 df = self.gcs[thing_name].tail(self.n_offset)
                 self.get_out_port("o_" + thing_name).add(df)
 
+        self.o_IS.add(self.msgout_IS)
+        self.o_usvp.add(self.msgout_usvp)
+
     def deltint(self):
         """Función DEVS de transición interna."""
         for thing_name in self.thing_names:
@@ -80,12 +95,29 @@ class GCS(Atomic):
                 self.counter[thing_name] = 0
             if len(self.gcs_cache[thing_name]) > 0:
                 self.gcs_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[thing_name]))
+         
+        # Medidas de los sensores
+        myt     = self.msg.payload['Time']                 
+        mylat   = self.msg.payload['Lat']
+        mylon   = self.msg.payload['Lon']
+        mydepth = self.msg.payload['Depth']
+        myalg   = self.gcs_cache['SimSenA']
+        # Parámetros del barco
+        mydelx  = self.msg_usv.payload['xdel']   
+        # Procesado del mensaje de salida
+        self.datetime=dt.datetime.fromisoformat(self.msg.timestamp)# En principio sin delay +dt.timedelta(seconds=self.sensorinfo.delay)
+        data_usvp = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx, 'Algae': myalg}
+        data_IS = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx, 'Algae': myalg}
+        self.msgout_usvp=Event(id=self.msg_usv.id,source=self.name,timestamp=self.datetime,payload=data_usvp)
+        self.msgout_IS=Event(id=self.msg_usv.id,source=self.name,timestamp=self.datetime,payload=data_IS)
         self.passivate()
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
         self.continuef(e)
-        # Procesamos todos los puertos:
+        # Procesamos el puerto del barco:
+        msg_usv = self.i_usv.get()
+        # Procesamos los demás puertos:
         for thing_name in self.thing_names:
             port = self.get_in_port("i_" + thing_name)
             if(port.empty() is False):
@@ -157,8 +189,6 @@ class Usv_Planner(Atomic):
 
     def __init__(self, name: str, usv1, delay:float):    
         super().__init__(name)
-
-
         self.i_in = Port(Event, "i_int")    #Event to aks the mesaurements  
         self.add_in_port(self.i_in)         
         self.o_out = Port(Event, "o_out")   #Event includes the measurements
@@ -256,7 +286,7 @@ class FogServer(Coupled):
         # USVs planner
         USVp = Usv_Planner("USVs_Planner",usv1, delay=0)
         self.add_component(USVp)
-        self.add_coupling(gcs.get_out_port("o_" + usv1.name), USVp.i_in)
+        self.add_coupling(gcs.o_IS, USVp.i_in)
         self.add_coupling(self.get_out_port("o_" + usv1.name), USVp.o_out)
         self.add_coupling(self.get_out_port("o_" + usv1.name), USVp.o_info)
 

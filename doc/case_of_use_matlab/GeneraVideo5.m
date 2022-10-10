@@ -132,7 +132,7 @@ xlabel('Longitude');
 xlim(myxlim)
 ylim(myylim)
 
-vtemp=mean(temp(:,lyr,tau),'omitnan');;
+vtemp=mean(temp(:,lyr,tau),'omitnan');
 vhour=0;
 
 % % Open video file

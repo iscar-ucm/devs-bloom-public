@@ -571,8 +571,8 @@ class ModelJournal_V2(Coupled):
                            sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
 
                            
-        # Complete the USV definition        
-        usv1 = USV_Simple("USV1", delay = 0)
+        # Complete the USV definition (simbody to get the initial time)       
+        usv1 = USV_Simple("USV_1", simbody, delay=0)
         
         # TODO: Complete the FogServer definition
         fog = FogServer("FogServer", usv1, thing_names, thing_event_ids)
@@ -621,6 +621,7 @@ class ModelJournal_V2(Coupled):
         self.add_coupling(ask_sensor_x.o_out, sensor_x.i_in)
         self.add_coupling(ask_sensor_y.o_out, sensor_y.i_in)
         self.add_coupling(usv1.o_out, fog.get_in_port("i_" + usv1.name))
+        self.add_coupling(usv1.o_info, fog.get_in_port("i_" + usv1.name))
         self.add_coupling(sensor_n.o_out, fog.get_in_port("i_" + sensor_n.name))
         self.add_coupling(sensor_o.o_out, fog.get_in_port("i_" + sensor_o.name))
         self.add_coupling(sensor_a.o_out, fog.get_in_port("i_" + sensor_a.name))
@@ -730,7 +731,7 @@ def test_journal_Giordy():
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
     simbody: SimBody5 = SimBody5('SimWater', bodyfile, myvars)
-    coupled = ModelJournal_V2("ModelJournal", 'data/simulation-journal-Giordy.txt', simbody, log=False)
+    coupled = ModelJournal_V2("ModelJournal_V2", 'data/simulation-journal-Giordy.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

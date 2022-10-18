@@ -8,7 +8,7 @@ una señal stop cuando la simulación termina, de forma que la función de
 transición externa de GCS, al detectar este final, guarde los datos
 remanentes.
 """
-
+from tkinter import EventType
 import pandas as pd
 import numpy as np
 import logging
@@ -147,6 +147,7 @@ class GCS(Atomic):
             print("dcache DESPUÉS de la interpolación de la columna " + column)
             print(self.db_cache[edge_device].head(30))
         self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.db_cache[edge_device]], ignore_index=True)
+
 
 class Usv_Planner(Atomic):
     PHASE_OFF = "off"         #Standby, wating for a resquet
@@ -289,6 +290,7 @@ class FogServer(Coupled):
             # EOC
             self.add_coupling(gcs.get_out_port("o_" + thing_name), self.get_out_port("o_" + thing_name))
 
+        '''
         # Nitrates scope
         if SensorEventId.NOX.value in thing_event_ids:
             idx_n = thing_event_ids.index(SensorEventId.NOX.value)
@@ -296,7 +298,7 @@ class FogServer(Coupled):
             self.add_component(scope)
             # bypass??
             self.add_coupling(self.get_in_port("i_" + thing_names[idx_n]), scope.i_in)
-        '''
+
         # USVs planner
     
         USVp = Usv_Planner("USVs_Planner",usv1, delay=0)

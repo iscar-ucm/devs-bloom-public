@@ -10,9 +10,7 @@ from util.event import DataEventId
 from util.commander import Generator
 from edge.body import SimBody5
 from edge.sensor import SimSensor5, SimSensor6, SensorEventId, SensorInfo
-
 from edge.usv import USV_Simple
-
 
 class Model_01(Coupled):
     """Clase que implementa un modelo simple con un único UAV."""
@@ -525,7 +523,6 @@ class ModelJournal(Coupled):
         ## self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
 
 
-
 class ModelJournal_V2(Coupled):
     """Clase que implementa un modelo de la pila IoT como entidad virtual."""
     
@@ -694,22 +691,19 @@ def test_outliers():
 def test_journal():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
-    myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
-    simbody: SimBody5 = SimBody5('SimWater', bodyfile, myvars)
+    simbody: SimBody5 = SimBody5('SimWater', bodyfile)
     coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()
     coord.exit()
 
-
 def test_journal_Giordy():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal_V2("ModelJournal_V2", 'data/simulation-journal-Giordy.txt', simbody, log=False)
+    coupled = ModelJournal_V2("ModelJournal", 'data/simulation-journal-Giordy.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()
-    coord.exit()    
-
+    coord.exit()

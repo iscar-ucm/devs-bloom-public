@@ -381,10 +381,10 @@ class USV_Simple(Atomic):
         else:
             #Refrencia del último fichero:
             delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
-            self.hold_in(PHASE_ACTIVE, delta.seconds)
 
-            '''
             # Implementación del comportamiento del barco 
+            # DIVIDIR VALORES ENTRE 30 MINS
+            '''
             myt     = self.msgin.payload['Time']                 
             mylat   = self.msgin.payload['Lat']
             mylon   = self.msgin.payload['Lon']
@@ -404,6 +404,7 @@ class USV_Simple(Atomic):
             data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx, 'Bloom':mybloom}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
             '''
+            self.hold_in(PHASE_ACTIVE, delta.seconds)
 
     def deltext(self, e: any):
         """DEVS external transition function."""

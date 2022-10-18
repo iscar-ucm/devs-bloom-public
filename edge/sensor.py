@@ -8,7 +8,6 @@ from xdevs.models import Coupled
 from xdevs.sim import Coordinator
 import logging
 logger = get_logger(__name__, logging.INFO)
-
 from typing import Any
 import datetime as dt
 from dataclasses import dataclass

@@ -56,3 +56,4 @@ class GenericCommunicationModule(PoweredComponent):
         timestamp=self.clock,
         payload={ 'mAh': [self.mAh] }
       ))
+

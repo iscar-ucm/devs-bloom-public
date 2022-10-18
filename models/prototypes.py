@@ -9,7 +9,7 @@ from cloud.cloud import Cloud
 from util.event import DataEventId
 from util.commander import Generator
 from edge.body import SimBody5
-from edge.sensor import SimSensor5, SensorEventId, SensorInfo
+from edge.sensor import SimSensor5, SimSensor6, SensorEventId, SensorInfo
 
 from edge.usv import USV_Simple
 
@@ -536,15 +536,8 @@ class ModelJournal_V2(Coupled):
         generator = Generator("Commander", commands_path)
 
         # FOG SEVER 1: Masa de agua 1
-        ask_sensor_n = FileAskVar("Ask_N", './dataedge/Sensor2008_NOX.csv', dataid=SensorEventId.NOX, log=log)
-        ask_sensor_o = FileAskVar("Ask_O", './dataedge/Sensor2008_DOX.csv', dataid=SensorEventId.DOX, log=log)
-        ask_sensor_a = FileAskVar("Ask_A", './dataedge/Sensor2008_ALG.csv', dataid=SensorEventId.ALG, log=log)
-        ask_sensor_t = FileAskVar("Ask_T", './dataedge/Sensor2008_temperature.csv', dataid=SensorEventId.WTE, log=log)
-        ask_sensor_u = FileAskVar("Ask_U", './dataedge/Sensor2008_U.csv', dataid=SensorEventId.WFU, log=log)
-        ask_sensor_v = FileAskVar("Ask_V", './dataedge/Sensor2008_V.csv', dataid=SensorEventId.WFV, log=log)
-        ask_sensor_s = FileAskVar("Ask_S", './dataedge/Sensor2008_sun.csv', dataid=SensorEventId.SUN, log=log)
-        ask_sensor_x = FileAskVar("Ask_X", './dataedge/Sensor2008_wind_x.csv', dataid=SensorEventId.WFX, log=log)
-        ask_sensor_y = FileAskVar("Ask_Y", './dataedge/Sensor2008_wind_y.csv', dataid=SensorEventId.WFY, log=log)
+        ''' #ELIMINAMOS EL FILEASKVAR 
+        '''
         sensor_info_n = SensorInfo(id=SensorEventId.NOX, description="Nitrogen sensor (mg/L)", delay=6, max=0.5, min=0.0, precision=0.1, noisebias=0.01, noisesigma=0.001)
         sensor_info_o = SensorInfo(id=SensorEventId.DOX, description="Oxigen sensor (mg/L)", delay=5, max=30.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
         sensor_info_a = SensorInfo(id=SensorEventId.ALG, description="Algae detector (mg/L)", delay=7, max=15.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
@@ -554,15 +547,15 @@ class ModelJournal_V2(Coupled):
         sensor_info_s = SensorInfo(id=SensorEventId.SUN, description="Sun radiation (n.u.)", delay=2, max=1.0, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_x = SensorInfo(id=SensorEventId.WFX, description="East wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_y = SensorInfo(id=SensorEventId.WFY, description="Nord wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
-        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log=log)
-        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log=log)
-        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log=log)
-        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log=log)
-        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log=log)
-        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log=log)
-        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log=log)
-        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log=log)
-        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log=log)
+        sensor_n = SimSensor6("SimSenN", simbody, sensor_info_n, log=log)
+        sensor_o = SimSensor6("SimSenO", simbody, sensor_info_o, log=log)
+        sensor_a = SimSensor6("SimSenA", simbody, sensor_info_a, log=log)
+        sensor_t = SimSensor6("SimSenT", simbody, sensor_info_t, log=log)
+        sensor_u = SimSensor6("SimSenU", simbody, sensor_info_u, log=log)
+        sensor_v = SimSensor6("SimSenV", simbody, sensor_info_v, log=log)
+        sensor_s = SimSensor6("SimSenS", simbody, sensor_info_s, log=log)
+        sensor_x = SimSensor6("SimSenX", simbody, sensor_info_x, log=log)
+        sensor_y = SimSensor6("SimSenY", simbody, sensor_info_y, log=log)
 
         thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
                        sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]
@@ -571,8 +564,9 @@ class ModelJournal_V2(Coupled):
                            sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
 
                            
-        # Complete the USV definition (simbody to get the initial time)       
-        usv1 = USV_Simple("USV_1", simbody, delay=0)
+        # Complete the USV definition (simbody to get the Sensor files)     
+        # INCLUIR EL BODYSIM COMO PARÁMETRO DE ENTRADA PARA CALCULAR LAS PERTURBACIONES
+        usv1 = USV_Simple("USV_1",'./dataedge/', thing_names, thing_event_ids, delay=0)
         
         # TODO: Complete the FogServer definition
         fog = FogServer("FogServer", usv1, thing_names, thing_event_ids)
@@ -580,15 +574,6 @@ class ModelJournal_V2(Coupled):
         # cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name])
         # Components:
         self.add_component(generator)
-        self.add_component(ask_sensor_n)
-        self.add_component(ask_sensor_o)
-        self.add_component(ask_sensor_a)
-        self.add_component(ask_sensor_t)
-        self.add_component(ask_sensor_u)
-        self.add_component(ask_sensor_v)
-        self.add_component(ask_sensor_s)
-        self.add_component(ask_sensor_x)
-        self.add_component(ask_sensor_y)
         self.add_component(sensor_n)
         self.add_component(sensor_o)
         self.add_component(sensor_a)
@@ -601,26 +586,18 @@ class ModelJournal_V2(Coupled):
         self.add_component(usv1)
         self.add_component(fog)
         # Coupling relations:
-        self.add_coupling(generator.o_cmd, ask_sensor_n.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_o.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_a.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_t.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_u.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_v.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_s.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_x.i_cmd)
-        self.add_coupling(generator.o_cmd, ask_sensor_y.i_cmd)
         self.add_coupling(generator.o_cmd, fog.i_cmd)
-        self.add_coupling(ask_sensor_n.o_out, sensor_n.i_in)
-        self.add_coupling(ask_sensor_o.o_out, sensor_o.i_in)
-        self.add_coupling(ask_sensor_a.o_out, sensor_a.i_in)
-        self.add_coupling(ask_sensor_t.o_out, sensor_t.i_in)
-        self.add_coupling(ask_sensor_u.o_out, sensor_u.i_in)
-        self.add_coupling(ask_sensor_v.o_out, sensor_v.i_in)
-        self.add_coupling(ask_sensor_s.o_out, sensor_s.i_in)
-        self.add_coupling(ask_sensor_x.o_out, sensor_x.i_in)
-        self.add_coupling(ask_sensor_y.o_out, sensor_y.i_in)
-        self.add_coupling(usv1.o_out, fog.get_in_port("i_" + usv1.name))
+        self.add_coupling(generator.o_cmd, usv1.i_cmd)
+        self.add_coupling(usv1.o_sensor, sensor_n.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_o.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_a.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_t.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_u.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_v.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_s.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_x.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_y.i_in)
+        self.add_coupling(usv1.o_out,  fog.get_in_port("i_" + usv1.name))
         self.add_coupling(usv1.o_info, fog.get_in_port("i_" + usv1.name))
         self.add_coupling(sensor_n.o_out, fog.get_in_port("i_" + sensor_n.name))
         self.add_coupling(sensor_o.o_out, fog.get_in_port("i_" + sensor_o.name))
@@ -631,7 +608,7 @@ class ModelJournal_V2(Coupled):
         self.add_coupling(sensor_s.o_out, fog.get_in_port("i_" + sensor_s.name))
         self.add_coupling(sensor_x.o_out, fog.get_in_port("i_" + sensor_x.name))
         self.add_coupling(sensor_y.o_out, fog.get_in_port("i_" + sensor_y.name))
-        self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)
+        #self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)
 
         ## self.add_component(cloud)
         ## self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
@@ -729,8 +706,7 @@ def test_journal():
 def test_journal_Giordy():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
-    myvars: list = ('WQ_O', 'WQ_N', 'WQ_ALG')
-    simbody: SimBody5 = SimBody5('SimWater', bodyfile, myvars)
+    simbody: SimBody5 = SimBody5('SimWater', bodyfile)
     coupled = ModelJournal_V2("ModelJournal_V2", 'data/simulation-journal-Giordy.txt', simbody, log=False)
     coord = Coordinator(coupled)
     coord.initialize()

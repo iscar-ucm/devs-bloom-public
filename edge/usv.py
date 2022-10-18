@@ -1,16 +1,24 @@
+import logging
 import datetime as dt
 import numpy as np
+import pandas as pd
+import os
+from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Port, Coupled
 from xdevs.sim import Coordinator
 from util.event import EnergyEventId, DataEventId, Event
 from pyproj import Transformer, CRS
 from edge.file import FileOut
+from edge.sensor import SensorEventId
 from edge.usv_power import PoweredComponent, PowerControlUnit
 from edge.usv_control import USVController, USVPurePursuitController
 from edge.usv_sensors import PoweredSimSensor
 from edge.usv_comms import GenericCommunicationModule
 from edge.usv_actuators import ContinuousModel
 from util.rest import RestBody
+from util.event import Event, DataEventId, CommandEvent, CommandEventId
+
+logger = get_logger(__name__, logging.INFO)
 
 PHASE_ON = "on"
 PHASE_OFF = "off"
@@ -282,18 +290,36 @@ class USVFactory:
 
 
 class USV_Simple(Atomic):
-  PHASE_OFF = "off"         #Standby, wating for a resquet
-  PHASE_INIT = "init"       #Send USV info
-  PHASE_ON = "on"           #Initialited, wating for a resquet
-  PHASE_WORK = "work"       #Making displacement
-  PHASE_DONE = "done"       #Send data
+    """
+    A model to load a file to ask SimSensor telemetries.
+    File example
+    DateTime	          Lat	        Lon	          Depth	        Sensor
+    2008-09-12 00:30:30	47,5	      -122,3	      0	            DOX
+    2008-09-12 00:31:30	47,50015983	-122,2999521	-0,010423905	NOX
+    """
 
-  def __init__(self, name, simbody, delay:float):
+    def __init__(self, name, datapath,  thing_names, thing_event_ids, delay):
         """Instancia la clase."""
         super().__init__(name)
         
-        self.simbody = simbody
+        self.datapath = datapath
+        self.thing_names = thing_names
+        self.thing_event_ids = thing_event_ids
         self.delay = delay
+        self.input_buffer = []
+        self.data_buffer = []
+
+        #Lectura de los ficheros correspondientes al datapath 
+        self.files = [f for f in os.listdir(self.datapath) if (f.startswith('Sensor2008_') and f.endswith(".csv"))]
+        self.file_name:str
+
+        # Puerto de entrada para el uso de comandos
+        self.i_cmd = Port(CommandEvent, "i_cmd")
+        self.add_in_port(self.i_cmd)
+
+        # Puertos de salida de control de los sensores
+        self.o_sensor = Port(Event, "o_sensor")
+        self.add_out_port(self.o_sensor)
         
         # Puertos de entrada/salida del USV
         self.i_in = Port(Event, "i_in")
@@ -304,71 +330,155 @@ class USV_Simple(Atomic):
 
         self.o_info = Port(Event, "o_info")
         self.add_out_port(self.o_info)
-  
-  def initialize(self):
-        # Wait for a resquet
-        self.initial: bool = True
-        #self.msgout = None
-        #self.lyr = 55
-        self.x0 = [0,0,0,0]
-        #self.tau = 100
-        self.passivate(self.PHASE_OFF)         #SENSOR OFF
-      
-  def exit(self):
-        self.passivate(self.PHASE_OFF)         #SENSOR OFF
-        pass
+
         
-  def deltint(self):
-        if self.phase==self.PHASE_INIT:
-            self.hold_in(self.PHASE_WORK,self.delay)
-        elif self.phase==self.PHASE_WORK:      
-            # Procesado del mensaje de salida       
-            self.delt=(dt.datetime.fromisoformat(self.msgin.timestamp)-self.simbody.dtini)
+    def initialize(self):
+        """Función de inicialización."""
+        # Let's read a value from alls sensor files
+        self.mydata={}
+        self.datetimes={}  
+
+        for self.file_name in self.files:   
+          if (self.file_name[-1]) == 'x':
+              self.mydata[self.file_name] = pd.read_excel(self.datapath+self.file_name, parse_dates=True)
+              self.datetimes[self.file_name]=(self.mydata[self.file_name])['DateTime']
+
+          if (self.file_name[-1]) == 'v':
+              self.mydata[self.file_name]  = pd.read_csv(self.datapath+self.file_name, parse_dates=True)  # Sensor data loading
+              self.datetimes[self.file_name] = [dt.datetime.fromisoformat(s) for s in (self.mydata[self.file_name])['DateTime']] #Para CSV
+
+        # Al tener archivos con las mismas dimensiones, se puede simplificar las siguientes definiciones,
+        # (tener en cuenta en futuras versiones):
+        self.N = self.mydata[self.file_name].DateTime.count()
+        self.ind = -1
+
+        # Estado inicial del USV:
+        '''
+        self.tau=100
+        self.lyr=55
+        self.seccion = range(1,200,1)
+        self.latc= self.mydata[self.file_name]['Lat']
+        self.lonc = self.mydata[self.file_name]['Lon']
+        self.map = [self.lonc[self.seccion],self.latc[self.seccion]]
+        self.ip=10
+        self.x0=[0,self.lonc(self.ip),self.latc(self.ip)]
+        self.x = self.x0
+        self.initial: bool = True
+        self.msgout = None
+        '''
+        super().passivate()
+
+    def exit(self):
+        """Exit function."""
+        pass
+
+    def deltint(self):
+        """DEVS internal transition function."""
+        # Calcula delta tiempo hasta siguiente Telemetría
+        self.ind = self.ind + 1              # Actualizo indice a siguiente
+        if self.ind >= self.N:
+            self.passivate()
+        else:
+            #Refrencia del último fichero:
+            delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
+            self.hold_in(PHASE_ACTIVE, delta.seconds)
+
+            '''
+            # Implementación del comportamiento del barco 
             myt     = self.msgin.payload['Time']                 
             mylat   = self.msgin.payload['Lat']
             mylon   = self.msgin.payload['Lon']
             mydepth = self.msgin.payload['Depth']
             mydelx  = self.msgin.payload['Xdel']   
             myalg   = self.msgin.payload['Algae'] 
-            myx   = self.msgin.payload['x'] 
-
-            if self.delt == 0:
+            myx     = self.msgin.payload['x'] 
+            mybloom = self.msgin.payload['Bloom']
+            # BLOOM inicial
+            if (self.delt == 0):
               myx = self.x0
-              self.bloom = False
+              mybloom = False
               self.vtemp = []
               self.vhour = []
 
             self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
-            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx}
+            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx, 'Bloom':mybloom}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
-            self.hold_in(self.PHASE_DONE,0)
-        elif self.phase==self.PHASE_DONE:
-            self.passivate(self.PHASE_ON)
-      
-  def deltext(self, e: any):
-        if self.phase==self.PHASE_OFF:
-            self.msgin = self.i_in.get()
-            self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
-            self.hold_in(self.PHASE_INIT,0)
-        elif self.phase==self.PHASE_ON:
-            self.msgin = self.i_in.get()
-            self.hold_in(self.PHASE_WORK,self.delay)
-          
-  def lambdaf(self):
-        if self.phase==self.PHASE_INIT:
-            self.o_info.add(self.msgout)
-            if self.log==True:  logger.info(self.msgout)
-        if self.phase==self.PHASE_DONE:
-            self.o_out.add(self.msgout)
-            if self.log==True:  logger.info(self.msgout)
-        #Enviar el mensaje inicial del USV
-        if ((self.phase==self.PHASE_OFF) and (self.initial == True)):
-            data_init = {'Time':0,'Lat':0,'Lon':0,'Depth':0, 'Xdel': 0,'Algae': 0, 'x': 0}
-            self.msgout=Event(id='0',source=self.name,timestamp=self.simbody.dtini,payload=data_init)
-            self.o_out.add(self.msgout) 
-            print('Envio inicial')
-            self.initial = False
+            '''
 
+    def deltext(self, e: any):
+        """DEVS external transition function."""
+        if (self.i_cmd.empty() is False):
+            cmd: CommandEvent = self.i_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_START_SIM:
+                start: np.datetime = cmd.date
+                delstart = [s-start for s in self.datetimes[self.file_name]]
+                self.ind = round(np.nanargmin(np.absolute(delstart)))  # Nearest time index
+                delta = (self.datetimes[self.file_name][self.ind] - start).total_seconds()
+                if (delta >= 0):
+                    super().hold_in(PHASE_ACTIVE, delta)
+                elif (delta < 0)& (self.ind>0):
+                    self.ind = self.ind-1
+                    delta = (self.datetimes[self.file_name][self.ind] - start).total_seconds()
+                    super().hold_in(PHASE_ACTIVE, delta)
+                else:
+                    print('Error Start Time does not agree with FileInVar Times')
+                    super().passivate()
+                    
+            if cmd.cmd == CommandEventId.CMD_STOP_SIM:
+                super().passivate()
+            '''
+            if self.phase==self.PHASE_OFF:
+                self.msgin = self.i_in.get()
+                self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
+                self.hold_in(self.PHASE_INIT,0)
+            elif self.phase==self.PHASE_ON:
+                self.msgin = self.i_in.get()
+                self.hold_in(self.PHASE_WORK,self.delay)
+            '''
+    def lambdaf(self):
+        """DEVS output function."""
+        for self.file_name in self.files:
+            row = self.mydata[self.file_name].iloc[self.ind]   # Telemetría
+            payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
+            datetime = payload.pop('DateTime')
+            match(payload['Sensor']):
+              case 'ALG':
+                  self.dataid = SensorEventId.ALG
+              case 'DOX':
+                  self.dataid = SensorEventId.DOX
+              case 'NOX':
+                  self.dataid = SensorEventId.NOX
+              case 'sun':
+                  self.dataid = SensorEventId.SUN
+              case 'temperature':
+                  self.dataid = SensorEventId.WTE
+              case 'U':
+                  self.dataid = SensorEventId.WFU
+              case 'V':
+                  self.dataid = SensorEventId.WFV
+              case 'wind_x':
+                  self.dataid = SensorEventId.WFX
+              case 'wind_y':
+                  self.dataid = SensorEventId.WFY
+              case _:
+                  continue  
+            self.o_sensor.add(Event(id=self.dataid.value, source=self.datapath+self.file_name, timestamp=datetime, payload=payload))
+
+        '''
+          if self.phase==self.PHASE_INIT:
+              self.o_info.add(self.msgout)
+              if self.log==True:  logger.info(self.msgout)
+          if self.phase==self.PHASE_DONE:
+              self.o_out.add(self.msgout)
+              if self.log==True:  logger.info(self.msgout)
+          #Enviar el mensaje inicial del USV
+          if ((self.phase==self.PHASE_OFF) and (self.initial == True)):
+              data_init = {'Time':0,'Lat':0,'Lon':0,'Depth':0, 'Xdel': 0,'Algae': 0, 'x': 0, 'Bloom': False}
+              self.msgout=Event(id='0',source=self.name,timestamp=self.simbody.dtini,payload=data_init)
+              self.o_out.add(self.msgout) 
+              print('Envio inicial')
+              self.initial = False
+        '''
 
 class TestInput(Atomic):
   '''A test input generator to test USV'''

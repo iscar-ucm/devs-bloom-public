@@ -9,7 +9,6 @@ transición externa de GCS, al detectar este final, guarde los datos
 remanentes.
 """
 
-from tkinter import EventType
 import pandas as pd
 import numpy as np
 import logging
@@ -26,33 +25,20 @@ logger = get_logger(__name__, logging.DEBUG)
 class GCS(Atomic):
     """Clase para guardar datos en la base de datos."""
 
-    def __init__(self, name: str, usv1, thing_names: list, thing_event_ids: list, n_offset: int = 100):
+    def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
+        self.usv1 = usv1
         self.thing_names = thing_names
         self.thing_event_ids = {}
         self.n_offset = n_offset
-        
-        # Entrada de comandos
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
 
-        # Puerto de entrada del USV
-        self.i_usv = Port(Event, "i_" + usv1.name)
+        # Puertos con los datos del barco 
+        self.i_usv = Port(Event, "i_usv")
         self.add_in_port(self.i_usv)
-
-        # Pueto de salida para el USV planner
-        self.o_usvp = Port(Event, "o_usvp")
-        self.add_out_port(self.o_usvp)
-
-        # Puertos de entrada y salida para la Servicio de Inferencia
-        self.i_isv = Port(Event, "i_isv")
-        self.add_in_port(self.i_isv)
-
-        self.o_isv = Port(Event, "o_isv")
-        self.add_out_port(self.o_isv)
         
-        # Puertos de los sensores
         for i in range(0, len(self.thing_names)):
             thing_name = thing_names[i]
             self.thing_event_ids[thing_name] = thing_event_ids[i]
@@ -61,17 +47,15 @@ class GCS(Atomic):
 
     def initialize(self):
         """Inicialización de la simulación DEVS."""
-        self.msgout = None
-        self.initial = True 
-        self.gcs = {}
-        self.gcs_cache = {}
-        self.gcs_path = {}
+        self.db = {}
+        self.db_cache = {}
+        self.db_path = {}
         self.counter = {}
         time_mark = strftime("%Y%m%d%H%M%S", localtime())
         for thing_name in self.thing_names:
-            self.gcs[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
-            self.gcs_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
-            self.gcs_path[thing_name] = "data/" + self.parent.name + "." + thing_name + "_" + time_mark
+            self.db[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
+            self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
+            self.db_path[thing_name] = "data/" + self.parent.name + "." + thing_name + "_" + time_mark
             # offset
             self.counter[thing_name] = 0
         self.passivate()
@@ -80,61 +64,31 @@ class GCS(Atomic):
         """Función de salida de la simulación."""
         # Aquí tenemos que guardar la base de datos.
         for thing_name in self.thing_names:
-            self.gcs[thing_name].to_csv(self.gcs_path[thing_name] + ".csv")
+            self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
 
     def lambdaf(self):
         """
         Función DEVS de salida.
-
         De momento la comentamos para que no vaya trabajo al cloud.
         """
         for thing_name in self.thing_names:
             if self.counter[thing_name] >= self.n_offset:
-                df = self.gcs[thing_name].tail(self.n_offset)
+                df = self.db[thing_name].tail(self.n_offset)
                 self.get_out_port("o_" + thing_name).add(df)
-        if (self.initial == False):
-            #self.o_isv.add(self.msgout_isv)
-            self.o_usvp.add(self.msgout_usvp)
-        
 
     def deltint(self):
         """Función DEVS de transición interna."""
         for thing_name in self.thing_names:
             if self.counter[thing_name] == self.n_offset:
                 self.counter[thing_name] = 0
-            if len(self.gcs_cache[thing_name]) > 0:
-                self.gcs_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[thing_name]))
-         
-        if (self.initial == False):
-            # Parámetros del barco:
-            myt     = self.msg_usv.payload['Time']                 
-            mylat   = self.msg_usv.payload['Lat']
-            mylon   = self.msg_usv.payload['Lon']
-            mydepth = self.msg_usv.payload['Depth']
-            mydelx  = self.msg_usv.payload['Xdel']
-            myx  = self.msg_usv.payload['x']
-            # Medidas de los sensores:
-            myalg   = self.gcs_cache['SimSenA']
-
-
-            # Procesado del mensaje de salida
-            self.datetime=dt.datetime.fromisoformat(self.msg_usv.timestamp)# En principio sin delay +dt.timedelta(seconds=self.sensorinfo.delay)
-            data_usvp = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx}
-            data_isv = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx}
-            self.msgout_usvp=Event(id=self.msg_usv.id,source=self.name,timestamp=self.datetime,payload=data_usvp)
-            self.msgout_isv=Event(id=self.msg_usv.id,source=self.name,timestamp=self.datetime,payload=data_isv)
-            self.passivate()
+            if len(self.db_cache[thing_name]) > 0:
+                self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[thing_name]))
+        self.passivate()
 
     def deltext(self, e):
         """Función DEVS de transición externa."""
         self.continuef(e)
-
-        # Procesamos el puerto del barco:
-        if (self.i_usv.empty is False):
-            self.msg_usv = self.i_usv.get()
-            self.initial = False 
-
-        # Procesamos los puertos de los sensores:
+        # Procesamos todos los puertos:
         for thing_name in self.thing_names:
             port = self.get_in_port("i_" + thing_name)
             if(port.empty() is False):
@@ -145,11 +99,10 @@ class GCS(Atomic):
                 msg_list.append(msg.timestamp)
                 for value in msg.payload.values():
                     msg_list.append(value)
-                self.gcs[thing_name].loc[len(self.gcs[thing_name])] = msg_list
+                self.db[thing_name].loc[len(self.db[thing_name])] = msg_list
                 self.counter[thing_name] += 1
             if self.counter[thing_name] == self.n_offset:
                 super().activate()
-
         if self.i_cmd.empty() is False:
             cmd: CommandEvent = self.i_cmd.get()
             if cmd.cmd == CommandEventId.CMD_FIX_OUTLIERS:
@@ -161,8 +114,8 @@ class GCS(Atomic):
                 ##     init_interval = dt.datetime.strptime(args[2], '%Y-%m-%d %H:%M:%S')
                 ##     stop_interval = dt.datetime.strptime(args[3], '%Y-%m-%d %H:%M:%S\n')
                 ##     # Tengo que seleccionar los datos en el intervalo especificado:
-                ##     self.gcs_cache[thing_name] = self.gcs_raw[thing_name][(self.gcs_raw[thing_name].timestamp >= init_interval) &
-                ##                                                         (self.gcs_raw[thing_name].timestamp <= stop_interval)]
+                ##     self.db_cache[thing_name] = self.db_raw[thing_name][(self.db_raw[thing_name].timestamp >= init_interval) &
+                ##                                                         (self.db_raw[thing_name].timestamp <= stop_interval)]
                 ##     print("Soy " + self.parent.name + ". Recibo la orden: " + cmd.cmd.name + " en el instante " + cmd.date.strftime("%Y/%m/%d %H:%M:%S")
                 ##           + " para detectar outliers de " + thing_name + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
                 ##           + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
@@ -172,31 +125,28 @@ class GCS(Atomic):
     def fit_outlayers(self, edge_device):
         """
         Función que se encarga de reparar los outliers.
-
         Ver el siguiente artículo: https://medium.com/analytics-vidhya/identifying-cleaning-and-replacing-outliers-titanic-dataset-20182a062893
-
         TODO: De momento el procedimiento no es muy avanzado. Por ejemplo: Lat y Lon se deberían detectar de forma multivariable (simultánea), teniendo en cuenta la distancia con los vecinos.
         """
         # self.dcache[edge_device].fillna(0, inplace=True)
         # La llamada anterior no funciona bien, porque al poner un 0 en los NaN, muchas veces no lo
         # toma como un outlier.
         print("dcache ANTES de la interpolación:")
-        print(self.gcs_cache[edge_device].head(30))
+        print(self.db_cache[edge_device].head(30))
         columns = DataEventColumns.get_data_columns(self.edge_data_ids[edge_device])
         whisker_width = 1.5
         for column in columns:
-            q1 = self.gcs_cache[edge_device][column].quantile(0.25)
-            q3 = self.gcs_cache[edge_device][column].quantile(0.75)
+            q1 = self.db_cache[edge_device][column].quantile(0.25)
+            q3 = self.db_cache[edge_device][column].quantile(0.75)
             iqr = q3 - q1
             lower_whisker = q1 - whisker_width*iqr
             upper_whisker = q3 + whisker_width*iqr
-            self.gcs_cache[edge_device][column] = np.where(self.gcs_cache[edge_device][column] > upper_whisker, np.nan, self.gcs_cache[edge_device][column])
-            self.gcs_cache[edge_device][column] = np.where(self.gcs_cache[edge_device][column] < lower_whisker, np.nan, self.gcs_cache[edge_device][column])
-            self.gcs_cache[edge_device][column] = self.gcs_cache[edge_device][column].interpolate().ffill().bfill()
+            self.db_cache[edge_device][column] = np.where(self.db_cache[edge_device][column] > upper_whisker, np.nan, self.db_cache[edge_device][column])
+            self.db_cache[edge_device][column] = np.where(self.db_cache[edge_device][column] < lower_whisker, np.nan, self.db_cache[edge_device][column])
+            self.db_cache[edge_device][column] = self.db_cache[edge_device][column].interpolate().ffill().bfill()
             print("dcache DESPUÉS de la interpolación de la columna " + column)
-            print(self.gcs_cache[edge_device].head(30))
-        self.gcs_mod[edge_device] = pd.concat([self.gcs_mod[edge_device], self.gcs_cache[edge_device]], ignore_index=True)
-
+            print(self.db_cache[edge_device].head(30))
+        self.db_mod[edge_device] = pd.concat([self.db_mod[edge_device], self.db_cache[edge_device]], ignore_index=True)
 
 class Usv_Planner(Atomic):
     PHASE_OFF = "off"         #Standby, wating for a resquet
@@ -241,12 +191,13 @@ class Usv_Planner(Atomic):
             mydepth = self.msgin.payload['Depth']
             mydelx  = self.msgin.payload['Xdel']   
             myalg   = self.msgin.payload['Algae'] 
-            myx   = self.msgin.payload['x'] 
+            myx   = self.msgin.payload['x']
+            mybloom = self.msgin.payload['Bloom'] 
 
             # Procesado del mensaje de salida
             self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
             # bypass provisional
-            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx}
+            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Xdel': mydelx,'Algae': myalg, 'x': myx, 'Bloom':mybloom}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
             self.hold_in(self.PHASE_DONE,0)
         elif self.phase==self.PHASE_DONE:
@@ -306,9 +257,9 @@ class Inference_Service(Atomic):
     def lambdaf(self):
         pass
 
-class FogServer(Coupled):
-    """Clase acoplada FogServer."""
 
+class FogServer(Coupled):
+    """Clase acoplada FogServer."""    
     def __init__(self, name, usv1, thing_names: list, thing_event_ids: list, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
@@ -345,16 +296,18 @@ class FogServer(Coupled):
             self.add_component(scope)
             # bypass??
             self.add_coupling(self.get_in_port("i_" + thing_names[idx_n]), scope.i_in)
-
+        '''
         # USVs planner
+    
         USVp = Usv_Planner("USVs_Planner",usv1, delay=0)
         self.add_component(USVp)
         self.add_coupling(gcs.o_usvp, USVp.i_in)
         self.add_coupling(USVp.o_out, self.get_out_port("o_" + usv1.name))
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name))
 
+    
         # Inference Service 
-        '''         
+                
         isv = Inference_Service("Inference_Service", usv1, delay=0)
         self.add_component(isv)
         self.add_coupling(gcs.o_isv, isv.i_in)

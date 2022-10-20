@@ -563,7 +563,7 @@ class ModelJournal_V2(Coupled):
                            
         # Complete the USV definition (simbody to get the Sensor files)     
         # INCLUIR EL BODYSIM COMO PARÁMETRO DE ENTRADA PARA CALCULAR LAS PERTURBACIONES
-        usv1 = USV_Simple("USV_1",'./dataedge/', thing_names, thing_event_ids, delay=0)
+        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, thing_names, thing_event_ids, delay=0)
         
         # TODO: Complete the FogServer definition
         fog = FogServer("FogServer", usv1, thing_names, thing_event_ids)
@@ -595,7 +595,7 @@ class ModelJournal_V2(Coupled):
         self.add_coupling(usv1.o_sensor, sensor_x.i_in)
         self.add_coupling(usv1.o_sensor, sensor_y.i_in)
         self.add_coupling(usv1.o_out,  fog.get_in_port("i_" + usv1.name))
-        self.add_coupling(usv1.o_info, fog.get_in_port("i_" + usv1.name))
+        #self.add_coupling(usv1.o_info, fog.get_in_port("i_" + usv1.name))
         self.add_coupling(sensor_n.o_out, fog.get_in_port("i_" + sensor_n.name))
         self.add_coupling(sensor_o.o_out, fog.get_in_port("i_" + sensor_o.name))
         self.add_coupling(sensor_a.o_out, fog.get_in_port("i_" + sensor_a.name))
@@ -605,7 +605,7 @@ class ModelJournal_V2(Coupled):
         self.add_coupling(sensor_s.o_out, fog.get_in_port("i_" + sensor_s.name))
         self.add_coupling(sensor_x.o_out, fog.get_in_port("i_" + sensor_x.name))
         self.add_coupling(sensor_y.o_out, fog.get_in_port("i_" + sensor_y.name))
-        #self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)
+        self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)
 
         ## self.add_component(cloud)
         ## self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))

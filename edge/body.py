@@ -272,9 +272,13 @@ class SimBody5:
         self.wsel= np.array(self.simbody['WSEL'])     # float32 WSEL(TIME, CELL) 
         self.belv = np.array(self.simbody['BELV'])[0] # float32 BELV(TIME, CELL), 
         self.layers= np.array(self.simbody['layers']) # int8 layers(CELL)
+        self.temp= np.array(self.simbody['temperature'])
         self.blayer= np.array(self.simbody['bottom_layer']) #int8 bottom_layer(CELL)
         self.sigma=np.array(self.simbody['sigma'])    # float32 sigma(CELL, KC)
-        #self.sun=np.array(self.simbody['sun'])          
+        self.sun= np.array(self.simbody['sun'])
+        self.u = np.array(self.simbody['U'])          # Velocidad del agua este(m/s)
+        self.v = np.array(self.simbody['V'])          # Velocidad del agua norte(m/s) 
+        self.w = np.array(self.simbody['W'])          # Velocidad del agua arriba(m/s)        
         #Prepare KDtree
         llc=np.c_[self.lon.ravel(), self.lat.ravel()] 
         self.lonlattree = KDTree(llc)

@@ -162,7 +162,7 @@ vu=nan;
 vv=nan;
 
 for lyr = 55 %1:55
- for tau = 1:length(time)
+ for tau = 1:length(time) % === self.ind in python
     ['DateTime = ', datestr(dt(tau))]
     if (hours(tau)==0) 
          x=x0;

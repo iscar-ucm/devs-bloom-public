@@ -95,9 +95,9 @@ class GCS(Atomic):
         # Enviando el mensaje correspondiente al planificador 
         if self.boolean_1 == True:
             self.o_usvp.add(self.msgout_usvp)
-            print(f'GCS: {self.msgin_usv.timestamp}')
             self.boolean_1 = False
-
+            print(f'GCS: {self.msgin_usv.timestamp}')
+            
         # Enviando el mensaje correspondiente al Servicio de inferencia 
         if self.boolean_2 == True:
             self.o_isv.add(self.msgout_isv)
@@ -188,6 +188,7 @@ class GCS(Atomic):
 
 
 class Usv_Planner(Atomic):
+    PHASE_SENDING = "sending" # Sending Data
 
     def __init__(self, name: str, delay:float):    
         """Instancia la clase."""
@@ -211,8 +212,6 @@ class Usv_Planner(Atomic):
     def initialize(self):
         """Función de inicialización."""
         # El planificador conoce los parámetros iniciales del barco
-        self.count = 0
-        self.boolean = False
         self.msgout    = None
         self.xdel      = [0,0,0]
         self.k2d       = 1/100
@@ -234,9 +233,10 @@ class Usv_Planner(Atomic):
 
     def lambdaf(self):
         """DEVS output function."""
-        if self.boolean == True:
+        #if self.boolean == True:
+        if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
-            self.boolean = False
+            self.passivate()
 
 
     def deltint(self):
@@ -249,10 +249,10 @@ class Usv_Planner(Atomic):
         """DEVS external transition function."""
         if (self.i_in.empty() is False):
             self.msgin = self.i_in.get()
-            self.boolean = True
             print(f'PLANER: {self.msgin.timestamp}')
             # Se recogen los valores entregados por el GCS               
             self.X         = self.msgin.payload['X']
+            self.Xs        = self.msgin.payload['Xs']
             self.U         = self.msgin.payload['U']
             self.P         = self.msgin.payload['P']
             self.xdel      = self.msgin.payload['xdel']
@@ -283,9 +283,10 @@ class Usv_Planner(Atomic):
             
             # Se construye la trama de datos a enviar:
             self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
-            data = {'X':self.X,'U':self.U,'P':self.P,'xdel':self.xdel,'SensorsOn':self.SensorsOn,'Bloom':self.mybloom}
+            data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
+                    'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
             self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
-            super().activate()
+            super().activate(self.PHASE_SENDING)
 
 
 class Inference_Service(Atomic):
@@ -366,7 +367,15 @@ class FogServer(Coupled):
         self.add_coupling(USVp.o_out, self.get_out_port("o_" + usv1.name))
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name))
 
+        
         '''
+        # Inference Service 
+        isv = Inference_Service("Inference_Service", usv1, delay=0)
+        self.add_component(isv)
+        self.add_coupling(gcs.o_isv, isv.i_in)
+        self.add_coupling(isv.o_out, gcs.i_isv)
+
+
         # Nitrates scope
         if SensorEventId.NOX.value in thing_event_ids:
             idx_n = thing_event_ids.index(SensorEventId.NOX.value)
@@ -375,9 +384,5 @@ class FogServer(Coupled):
             # bypass??
             self.add_coupling(self.get_in_port("i_" + thing_names[idx_n]), scope.i_in)
 
-        # Inference Service 
-        isv = Inference_Service("Inference_Service", usv1, delay=0)
-        self.add_component(isv)
-        self.add_coupling(gcs.o_isv, isv.i_in)
-        self.add_coupling(isv.o_out, gcs.i_isv)
+
         '''

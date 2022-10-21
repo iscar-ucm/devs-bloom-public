@@ -280,76 +280,10 @@ class Test3(Coupled):
     self.add_coupling(SensorO.o_out, Outfile.i_in)
     self.add_coupling(SensorA.o_out, Outfile.i_in)
 
-class SimSensor5(Atomic):
-    '''Simulated Sensor with states using a simulated Body5 in NetHFC4-UGRID format using sigma and time(second from 0) 
-    It includes a feedback message with Initialitation of SensorInfo'''
-    PHASE_OFF = "off"         #Standby, wating for a resquet
-    PHASE_INIT = "init"       #Send SensorInfo
-    PHASE_ON = "on"           #Initialited, wating for a resquet
-    PHASE_WORK = "work"       #Taking a measurement
-    PHASE_DONE = "done"       #Send Measurement
-
-    def __init__(self,name,simbody,sensorinfo,log=False):       
-        super().__init__(name)
-        self.log=log
-        self.i_in = Port(Event, "i_int")    #Event to aks the mesaurements  
-        self.add_in_port(self.i_in)         
-        self.o_out = Port(Event, "o_out")   #Event includes the measurements
-        self.add_out_port(self.o_out)
-        self.o_info = Port(Event, "o_info")   #Event includes the info
-        self.add_out_port(self.o_info)
-        self.simbody=simbody                #Simulated Body in NetHFC4 format
-        self.sensorinfo=sensorinfo          #The measurement takes delay seconds. 
-    
-    def initialize(self):
-        # Wait for a resquet
-        self.msgout = None
-        self.passivate(self.PHASE_OFF)         #SENSOR OFF
-      
-    def exit(self):
-        self.passivate(self.PHASE_OFF)         #SENSOR OFF
-        pass
-        
-    def deltint(self):
-        if self.phase==self.PHASE_INIT:
-            self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
-        elif self.phase==self.PHASE_WORK:
-            #myt=self.msgin.timestamp
-            delt=(dt.datetime.fromisoformat(self.msgin.timestamp)-self.simbody.dtini)
-            myt  = delt.seconds #Seconds from 0                   
-            mylat=self.msgin.payload['Lat']
-            mylon=self.msgin.payload['Lon']
-            mydepth=self.msgin.payload['Depth']
-            self.myvar=self.msgin.payload['Sensor']
-            value,t,ij,l=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
-            self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.sensorinfo.delay)
-            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, self.myvar: value, 'Bt':t,'Bij':ij,'Bl':l} #For debug
-            #data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, self.myvar: value}
-            self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data) 
-            self.hold_in(self.PHASE_DONE,0)
-        elif self.phase==self.PHASE_DONE:
-            self.passivate(self.PHASE_ON)
-      
-    def deltext(self, e: Any):
-        if self.phase==self.PHASE_OFF:
-            self.msgin = self.i_in.get()
-            self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.msgin.timestamp,payload=vars(self.sensorinfo)) 
-            self.hold_in(self.PHASE_INIT,0)
-        elif self.phase==self.PHASE_ON:
-            self.msgin = self.i_in.get()
-            self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
-          
-    def lambdaf(self):
-        if self.phase==self.PHASE_INIT:
-            self.o_info.add(self.msgout)
-            if self.log==True:  logger.info(self.msgout)
-        if self.phase==self.PHASE_DONE:
-            self.o_out.add(self.msgout)
-            if self.log==True:  logger.info(self.msgout)
 
 #To test SimSensor5 in root folder main_segundo_v5
 
-class SimSensor6(Atomic):
+class SimSensor5(Atomic):
     '''Simulated Sensor with states using a simulated Body5 in NetHFC4-UGRID format using sigma and time(second from 0) 
     It includes a feedback message with Initialitation of SensorInfo'''
     PHASE_OFF = "off"         #Standby, wating for a resquet

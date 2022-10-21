@@ -9,7 +9,7 @@ from cloud.cloud import Cloud
 from util.event import DataEventId
 from util.commander import Generator
 from edge.body import SimBody5
-from edge.sensor import SimSensor5, SimSensor6, SensorEventId, SensorInfo
+from edge.sensor import SimSensor5, SensorEventId, SensorInfo
 from edge.usv import USV_Simple
 
 class Model_01(Coupled):
@@ -544,15 +544,15 @@ class ModelJournal_V2(Coupled):
         sensor_info_s = SensorInfo(id=SensorEventId.SUN, description="Sun radiation (n.u.)", delay=2, max=1.0, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_x = SensorInfo(id=SensorEventId.WFX, description="East wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_y = SensorInfo(id=SensorEventId.WFY, description="Nord wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
-        sensor_n = SimSensor6("SimSenN", simbody, sensor_info_n, log=log)
-        sensor_o = SimSensor6("SimSenO", simbody, sensor_info_o, log=log)
-        sensor_a = SimSensor6("SimSenA", simbody, sensor_info_a, log=log)
-        sensor_t = SimSensor6("SimSenT", simbody, sensor_info_t, log=log)
-        sensor_u = SimSensor6("SimSenU", simbody, sensor_info_u, log=log)
-        sensor_v = SimSensor6("SimSenV", simbody, sensor_info_v, log=log)
-        sensor_s = SimSensor6("SimSenS", simbody, sensor_info_s, log=log)
-        sensor_x = SimSensor6("SimSenX", simbody, sensor_info_x, log=log)
-        sensor_y = SimSensor6("SimSenY", simbody, sensor_info_y, log=log)
+        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log=log)
+        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log=log)
+        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log=log)
+        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log=log)
+        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log=log)
+        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log=log)
+        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log=log)
+        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log=log)
+        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log=log)
 
         thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
                        sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]

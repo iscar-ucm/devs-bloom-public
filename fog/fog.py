@@ -85,6 +85,10 @@ class GCS(Atomic):
     def lambdaf(self):
         """
         Función DEVS de salida.
+<<<<<<< HEAD
+=======
+
+>>>>>>> 7bb8ad758371b5675ab8d03c7e2fed8811520c76
         De momento la comentamos para que no vaya trabajo al cloud.
         """
         for thing_name in self.thing_names:

@@ -17,6 +17,7 @@ if generavideo==true
 end
 
 %%
+addpath('../../dataedge')
 filename = 'Washington-1m-2008-09_UGRID.nc';
 ncdisp(filename)
 ncinfo = ncinfo(filename);

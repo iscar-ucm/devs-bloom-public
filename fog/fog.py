@@ -79,16 +79,14 @@ class GCS(Atomic):
     def exit(self):
         """Función de salida de la simulación."""
         # Aquí tenemos que guardar la base de datos.
-        for thing_name in self.thing_names:
-            self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
+        #for thing_name in self.thing_names:
+            #self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
+            # Arregar salida
+
 
     def lambdaf(self):
         """
         Función DEVS de salida.
-<<<<<<< HEAD
-=======
-
->>>>>>> 7bb8ad758371b5675ab8d03c7e2fed8811520c76
         De momento la comentamos para que no vaya trabajo al cloud.
         """
         for thing_name in self.thing_names:

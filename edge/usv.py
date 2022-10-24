@@ -299,6 +299,9 @@ class USV_Simple(Atomic):
     2008-09-12 00:30:30	47,5	      -122,3	      0	            DOX
     2008-09-12 00:31:30	47,50015983	-122,2999521	-0,010423905	NOX
     """
+    PHASE_INIT    = "init"             # Iinitializing USV
+    PHASE_SENDING = "sending"          # Sending Data
+    PHASE_END     = "end"              # End USV process
 
     def __init__(self, name, datapath, simbody, delay):
         """Instancia la clase."""
@@ -350,7 +353,7 @@ class USV_Simple(Atomic):
 
         # Al tener archivos con las mismas dimensiones, se puede simplificar las siguientes definiciones,
         # (tener en cuenta en futuras versiones):
-        self.N = self.mydata[self.file_name].DateTime.count()
+        self.N = self.mydata[self.file_name].DateTime.count() # N = 721
         self.ind = -1
         # Valores del estado del barco:
         #X[1]=power             X[2]=lon            X[3]=lat
@@ -366,8 +369,8 @@ class USV_Simple(Atomic):
         self.U         = self.simbody.u           # Velocidad del agua este(m/s)
         self.V         = self.simbody.v           # Velocidad del agua norte(m/s)
         self.seccion   = range(0,200,1)
-        self.map        = np.c_[self.lonc[self.seccion].ravel(), self.latc[self.seccion].ravel()] 
-        self.maptree    = KDTree(self.map)
+        self.map       = np.c_[self.lonc[self.seccion].ravel(), self.latc[self.seccion].ravel()] 
+        self.maptree   = KDTree(self.map)
         self.X0        = [0,   self.lonc[self.ip],  self.latc[self.ip]]
         self.X         = self.X0
         self.Xs        = [0.5, self.X0[1], self.X0[2]]
@@ -380,7 +383,7 @@ class USV_Simple(Atomic):
 
         data = {'X':self.X,'Xs':self.Xs, 'U':self.U,'P':self.P,
                 'xdel':self.xdel,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-        self.msgout=Event(id=self.name,source=self.name,payload=data)
+        self.msgout_init=Event(id=self.name,source=self.name, payload=data)
         super().passivate()
 
     def exit(self):
@@ -389,16 +392,54 @@ class USV_Simple(Atomic):
 
     def lambdaf(self):
         """DEVS output function."""
-        # Mensaje de salida del barco
-        row = self.mydata[self.file_name].iloc[self.ind]   # Telemetría
-        payload = row.to_dict() 
-        self.msgout.timestamp = payload.pop('DateTime')
-        self.o_out.add(self.msgout)
-        print(f'USV:{self.msgout.timestamp}')   # CONFIRMACIÓN DE ENVÍO
+        if self.phase == self.PHASE_INIT:
+          self.msgout_init.timestamp = self.datetime
+          self.o_out.add(self.msgout_init)
+          print('------------------------------------------')
+          print(f'USV_INIT:{self.msgout_init.timestamp}')   # CONFIRMACIÓN DE ENVÍO
 
-        if self.SensorsOn == True:
-          # Mensaje de salida para los sensores  
-          for self.file_name in self.files:
+          if self.msgout_init.payload['SensorsOn'] == True:
+            # Mensaje de salida para los sensores  
+            for self.file_name in self.files:
+              row = self.mydata[self.file_name].iloc[self.ind]   # Telemetría
+              payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
+              self.datetime_sensor = payload.pop('DateTime')
+              match(payload['Sensor']):
+                case 'ALG':
+                    self.dataid = SensorEventId.ALG
+                case 'DOX':
+                    self.dataid = SensorEventId.DOX
+                case 'NOX':
+                    self.dataid = SensorEventId.NOX
+                case 'sun':
+                    self.dataid = SensorEventId.SUN
+                case 'temperature':
+                    self.dataid = SensorEventId.WTE
+                case 'U':
+                    self.dataid = SensorEventId.WFU
+                case 'V':
+                    self.dataid = SensorEventId.WFV
+                case 'wind_x':
+                    self.dataid = SensorEventId.WFX
+                case 'wind_y':
+                    self.dataid = SensorEventId.WFY
+                case _:
+                      continue  
+              self.o_sensor.add(Event(id=self.dataid.value, source=self.datapath+self.file_name, timestamp=self.datetime_sensor, payload=payload))
+              print(f'Sensor: {self.dataid.value}, datetime: {self.datetime_sensor}')
+          self.passivate()
+
+        if self.phase == self.PHASE_SENDING and self.ind < self.N:
+          # Mensaje de salida del barco
+          self.msgout.timestamp = self.datetime
+          self.o_out.add(self.msgout)
+          print('------------------------------------------')
+          print(f'USV:{self.msgout.timestamp}')   # CONFIRMACIÓN DE ENVÍO
+          self.passivate()
+
+          if self.msgout.payload['SensorsOn'] == True:
+            # Mensaje de salida para los sensores  
+            for self.file_name in self.files:
               row = self.mydata[self.file_name].iloc[self.ind]   # Telemetría
               payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
               self.datetime = payload.pop('DateTime')
@@ -422,8 +463,9 @@ class USV_Simple(Atomic):
                 case 'wind_y':
                     self.dataid = SensorEventId.WFY
                 case _:
-                    continue  
+                      continue  
               self.o_sensor.add(Event(id=self.dataid.value, source=self.datapath+self.file_name, timestamp=self.datetime, payload=payload))
+              print(f'Sensor: {self.dataid.value}, datetime: {self.datetime}')
 
     def deltint(self):
         """DEVS internal transition function."""
@@ -434,6 +476,7 @@ class USV_Simple(Atomic):
         else:
             #Refrencia del último fichero:
             delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
+            self.datetime = (self.datetimes[self.file_name][self.ind])
             self.hours = self.datetimes[self.file_name][self.ind].hour
             for self.lyr in self.lyers:
               # Estado incial:
@@ -472,7 +515,7 @@ class USV_Simple(Atomic):
     def deltext(self,e: Any):
         self.continuef(e)
         """DEVS external transition function."""
-        if (self.i_in.empty() is False):                   
+        if (self.i_in.empty() is False) and (self.ind < self.N):                   
             self.msgin = self.i_in.get()
             self.X         = self.msgin.payload['X']
             self.Xs        = self.msgin.payload['Xs']
@@ -486,6 +529,7 @@ class USV_Simple(Atomic):
             data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
                     'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
+            self.activate(self.PHASE_SENDING)
 
         if (self.i_cmd.empty() is False):
             cmd: CommandEvent = self.i_cmd.get()
@@ -494,18 +538,20 @@ class USV_Simple(Atomic):
                 delstart = [s-start for s in self.datetimes[self.file_name]]
                 self.ind = round(np.nanargmin(np.absolute(delstart)))  # Nearest time index
                 delta = (self.datetimes[self.file_name][self.ind] - start).total_seconds()
+                self.datetime = self.datetimes[self.file_name][self.ind]
                 if (delta >= 0):
-                    super().hold_in(PHASE_ACTIVE, delta)
+                    super().hold_in(self.PHASE_INIT, delta)
+                    
                 elif (delta < 0)& (self.ind>0):
                     self.ind = self.ind-1
                     delta = (self.datetimes[self.file_name][self.ind] - start).total_seconds()
-                    super().hold_in(PHASE_ACTIVE, delta)
+                    super().hold_in(self.PHASE_INIT, delta)
                 else:
                     print('Error Start Time does not agree with FileInVar Times')
                     super().passivate()
 
             if cmd.cmd == CommandEventId.CMD_STOP_SIM:
-              super().passivate()
+              super().passivate(self.PHASE_END)
 
 
 class TestInput(Atomic):

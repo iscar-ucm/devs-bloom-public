@@ -246,7 +246,6 @@ class Usv_Planner(Atomic):
             print(f'PLANER: {self.msgout.timestamp}') # CONFIRMACIÓN DE ENVÍO
             self.passivate()
 
-
     def deltint(self):
         """DEVS internal transition function."""
         self.passivate()
@@ -289,7 +288,7 @@ class Usv_Planner(Atomic):
                 self.X[0] = 1
             
             # Se construye la trama de datos a enviar:
-            self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
+            self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.delay)
             data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
                     'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
             self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
@@ -355,7 +354,7 @@ class Inference_Service(Atomic):
             ##############################################
 
             # Se construye la trama de datos a enviar:
-            self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
+            self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.delay)
             data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
                     'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
             self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)

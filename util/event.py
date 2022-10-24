@@ -50,12 +50,12 @@ class SensorEventId(Enum):
     DOX = "DOX"     #Dissolved oxygen
     NOX = "NOX"     #Nitrate nitrogen
     ALG = "ALG"     #Algae 2 
-    SUN = "sun"     #Sun radiation
-    WTE = "temperature" #Water temperature
-    WFU = "U"       #Water East Flow
-    WFV = "W"       #Wind Nord Flow
-    WFX = "wind_x"  #Wind East Flow 
-    WFY = "wind_x"  #Wind East Flow 
+    SUN = "SUN"     #Sun radiation
+    WTE = "WTE"     #Water temperature
+    WFU = "WFU"     #Water East Flow
+    WFV = "WFV"     #Wind Nord Flow
+    WFX = "WFX"     #Wind East Flow 
+    WFY = "WFY"     #Wind East Flow 
 
 
 class CommandEventId(Enum):

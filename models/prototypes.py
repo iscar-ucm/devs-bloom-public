@@ -429,7 +429,7 @@ class ModelJournal(Coupled):
         generator = Generator("Commander", commands_path)
 
         # FOG SEVER 1: Masa de agua 1
-        ''' #ELIMINAMOS EL FILEASKVAR 
+        ''' #SE PRESCINDE DEL FILEASKVAR (Incorporado en el USV) 
         ask_sensor_n = FileAskVar("Ask_N", './dataedge/Sensor2008_NOX.csv', dataid=SensorEventId.NOX, log=log)
         ask_sensor_o = FileAskVar("Ask_O", './dataedge/Sensor2008_DOX.csv', dataid=SensorEventId.DOX, log=log)
         ask_sensor_a = FileAskVar("Ask_A", './dataedge/Sensor2008_ALG.csv', dataid=SensorEventId.ALG, log=log)
@@ -464,11 +464,9 @@ class ModelJournal(Coupled):
         thing_event_ids = [sensor_info_n.id.value, sensor_info_o.id.value, sensor_info_a.id.value,
                            sensor_info_t.id.value, sensor_info_u.id.value, sensor_info_v.id.value,
                            sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
-
-                           
-        # Complete the USV definition (simbody to get the Sensor files)     
-        # INCLUIR EL BODYSIM COMO PARÁMETRO DE ENTRADA PARA CALCULAR LAS PERTURBACIONES
-        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, thing_names, thing_event_ids, delay=0)
+         
+        # Se crea la clase provisionar del barco
+        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0)
         
         # TODO: Complete the FogServer definition
         fog = FogServer("FogServer", usv1, thing_names, thing_event_ids)
@@ -603,12 +601,4 @@ def test_journal():
     coord.simulate()
     coord.exit()
 
-def test_journal_Giordy():
-    """Comprobamos el modelo para el journal."""
-    bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
-    simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal-Giordy.txt', simbody, log=False)
-    coord = Coordinator(coupled)
-    coord.initialize()
-    coord.simulate()
-    coord.exit()
+

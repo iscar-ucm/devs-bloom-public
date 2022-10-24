@@ -25,6 +25,7 @@ logger = get_logger(__name__, logging.DEBUG)
 
 class GCS(Atomic):
     """Clase para guardar datos en la base de datos."""
+    PHASE_SENDING = "sending" # Sending Data
 
     def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, n_offset: int = 100):
         """Función de inicialización de atributos."""
@@ -46,7 +47,11 @@ class GCS(Atomic):
         self.o_usvp = Port(Event, "o_usvp")
         self.add_out_port(self.o_usvp)
 
-        # Puertos salida para el Servicio de Inferencia
+        # Puerto de entrada para el Servicio de Inferencia
+        self.i_isv = Port(Event, "i_isv")
+        self.add_in_port(self.i_isv)
+
+        # Puerto de salida para el Servicio de Inferencia
         self.o_isv = Port(Event, "o_isv")
         self.add_out_port(self.o_isv)
         
@@ -54,7 +59,7 @@ class GCS(Atomic):
             thing_name = thing_names[i]
             self.thing_event_ids[thing_name] = thing_event_ids[i]
             self.add_in_port(Port(Event, "i_" + thing_name))
-            self.add_out_port(Port(pd.DataFrame, "o_" + thing_name))
+            self.add_out_port(Port(Event, "o_" + thing_name))
 
     def initialize(self):
         """Inicialización de la simulación DEVS."""
@@ -71,7 +76,7 @@ class GCS(Atomic):
         for thing_name in self.thing_names:
             self.db[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
             self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
-            self.db_path[thing_name] = "data/" + self.parent.name + "." + thing_name + "_" + time_mark
+            self.db_path[thing_name] = "datafog/" + self.parent.name + "." + thing_name + "_" + time_mark
             # offset
             self.counter[thing_name] = 0
         self.passivate()
@@ -79,31 +84,25 @@ class GCS(Atomic):
     def exit(self):
         """Función de salida de la simulación."""
         # Aquí tenemos que guardar la base de datos.
-        #for thing_name in self.thing_names:
-            #self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
+        for thing_name in self.thing_names:
+            self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
             # Arregar salida
-
+        pass
 
     def lambdaf(self):
-        """
-        Función DEVS de salida.
-        De momento la comentamos para que no vaya trabajo al cloud.
-        """
-        for thing_name in self.thing_names:
-            if self.counter[thing_name] >= self.n_offset:
-                df = self.db[thing_name].tail(self.n_offset)
-                self.get_out_port("o_" + thing_name).add(df)
+        
+        # Enviando datos a la capa CLOUD
+        #for thing_name in self.thing_names:
+        #   if self.counter[thing_name] >= self.n_offset:
+        #        df = self.db[thing_name].tail(self.n_offset)
+        #        self.get_out_port("o_" + thing_name).add(df)
 
-        # Enviando el mensaje correspondiente al planificador 
-        if self.boolean_1 == True:
+        # Enviando el mensaje correspondiente al planificador y a los servicios necesarios
+        if self.phase == self.PHASE_SENDING:
             self.o_usvp.add(self.msgout_usvp)
-            self.boolean_1 = False
-            print(f'GCS: {self.msgin_usv.timestamp}')
-            
-        # Enviando el mensaje correspondiente al Servicio de inferencia 
-        if self.boolean_2 == True:
             self.o_isv.add(self.msgout_isv)
-            self.boolean_2 == False
+            print(f'GCS: {self.msgout_usvp.timestamp}')  # CONFIRMACIÓN DE ENVÍO
+            self.passivate()
 
     def deltint(self):
         """Función DEVS de transición interna."""
@@ -121,9 +120,10 @@ class GCS(Atomic):
         if self.i_usv.empty() is False:
             self.msgin_usv = self.i_usv.get()
             # bypass temporal entre GCS y el Planificador
-            self.boolean_1 = True
             self.datetime=self.msgin_usv.timestamp
             self.msgout_usvp=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.datetime,payload=self.msgin_usv.payload)
+            self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.datetime,payload=self.msgin_usv.payload)
+            super().activate(self.PHASE_SENDING)
             if self.msgin_usv.payload['SensorsOn'] == True:
                 # Procesamos todos los puertos:
                 for thing_name in self.thing_names:
@@ -139,9 +139,7 @@ class GCS(Atomic):
                         self.db[thing_name].loc[len(self.db[thing_name])] = msg_list
                         self.counter[thing_name] += 1
                     if self.counter[thing_name] == self.n_offset:
-                        super().activate()
-        else:
-            super().activate()                        
+                        super().activate()                   
 
         if self.i_cmd.empty() is False:
             cmd: CommandEvent = self.i_cmd.get()
@@ -160,7 +158,7 @@ class GCS(Atomic):
                 ##           + " para detectar outliers de " + thing_name + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
                 ##           + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
                 ##     self.fit_outlayers(thing_name)
-                ##     super().activate()
+                super().activate()
 
     def fit_outlayers(self, edge_device):
         """
@@ -190,6 +188,13 @@ class GCS(Atomic):
 
 
 class Usv_Planner(Atomic):
+    ''' Fases útiles para futuras implementaciones
+        PHASE_OFF = "off"         #Standby, wating for a resquet
+        PHASE_INIT = "init"       #Send Inference Service Info
+        PHASE_ON = "on"           #Initialited, wating for a resquet
+        PHASE_WORK = "work"       #Providing Service
+        PHASE_DONE = "done"       #Send Service data
+    '''
     PHASE_SENDING = "sending" # Sending Data
 
     def __init__(self, name: str, delay:float):    
@@ -238,6 +243,7 @@ class Usv_Planner(Atomic):
         #if self.boolean == True:
         if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
+            print(f'PLANER: {self.msgout.timestamp}') # CONFIRMACIÓN DE ENVÍO
             self.passivate()
 
 
@@ -251,7 +257,6 @@ class Usv_Planner(Atomic):
         """DEVS external transition function."""
         if (self.i_in.empty() is False):
             self.msgin = self.i_in.get()
-            print(f'PLANER: {self.msgin.timestamp}')
             # Se recogen los valores entregados por el GCS               
             self.X         = self.msgin.payload['X']
             self.Xs        = self.msgin.payload['Xs']
@@ -292,19 +297,31 @@ class Usv_Planner(Atomic):
 
 
 class Inference_Service(Atomic):
-    PHASE_OFF = "off"         #Standby, wating for a resquet
-    PHASE_INIT = "init"       #Send Inference Service Info
-    PHASE_ON = "on"           #Initialited, wating for a resquet
-    PHASE_WORK = "work"       #Providing Service
-    PHASE_DONE = "done"       #Send Service data
+    ''' Fases útiles para futuras implementaciones
+        PHASE_OFF = "off"         #Standby, wating for a resquet
+        PHASE_INIT = "init"       #Send Inference Service Info
+        PHASE_ON = "on"           #Initialited, wating for a resquet
+        PHASE_WORK = "work"       #Providing Service
+        PHASE_DONE = "done"       #Send Service data
+    '''
+    PHASE_SENDING = "sending"     # Sending Data
 
     def __init__(self, name: str, usv1, delay:float):    
         super().__init__(name)
 
+        # Puerto de entrada de comandos(desde el Generador)
+        self.i_cmd = Port(CommandEvent, "i_cmd")    
+        self.add_in_port(self.i_cmd)      
+
+        # Puerto de entrada de datos(desde el GCS)
         self.i_in = Port(Event, "i_int")    
-        self.add_in_port(self.i_in)         
+        self.add_in_port(self.i_in)      
+
+        # Puerto de salida de datos(hacia el GCS)   
         self.o_out = Port(Event, "o_out")   
         self.add_out_port(self.o_out)
+
+        # Puerto de salida de info(hacia el GCS)  
         self.o_info = Port(Event, "o_info")   
         self.add_out_port(self.o_info)
 
@@ -314,20 +331,48 @@ class Inference_Service(Atomic):
     def initialize(self):
         # Wait for a resquet
         self.msgout = None
-        self.passivate(self.PHASE_OFF)         
+        self.passivate()         
       
     def exit(self):
-        self.passivate(self.PHASE_OFF)         
+        self.passivate()         
         pass
         
+    def deltext(self, e: any):
+        """Función DEVS de transición externa."""
+        self.continuef(e)
+        if (self.i_in.empty() is False):
+            self.msgin = self.i_in.get()
+            # Se recogen los valores entregados por el GCS               
+            self.X         = self.msgin.payload['X']
+            self.Xs        = self.msgin.payload['Xs']
+            self.U         = self.msgin.payload['U']
+            self.P         = self.msgin.payload['P']
+            self.xdel      = self.msgin.payload['xdel']
+            self.SensorsOn = self.msgin.payload['SensorsOn']
+            self.Bloom     = self.msgin.payload['Bloom']
+
+            # A CONTINUACIÓN SE REALIZAN LAS OPERACIONES NECESARIAS :
+            ##############################################
+
+            # Se construye la trama de datos a enviar:
+            self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.delay)
+            data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
+                    'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+            self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
+            super().activate(self.PHASE_SENDING)
+            
+        # A fututo, se implementará la entradad de comandos del generador
+        # if (self.i_cmd.empty() is False):
+
+    def lambdaf(self):
+        """DEVS output function."""
+        if self.phase == self.PHASE_SENDING:
+            self.o_out.add(self.msgout)
+            print(f'INFERENCE_SERVICE: {self.msgout.timestamp}') # CONFIRMACIÓN DE ENVÍO
+            self.passivate()
+            
     def deltint(self):
         pass
-    def deltext(self, e: any):
-        pass
-          
-    def lambdaf(self):
-        pass
-
 
 class FogServer(Coupled):
     """Clase acoplada FogServer."""    
@@ -345,7 +390,7 @@ class FogServer(Coupled):
         # Puerto de entrada-salida de los sensores
         for thing_name in thing_names:
             self.add_in_port(Port(Event, "i_" + thing_name))
-            self.add_out_port(Port(pd.DataFrame, "o_" + thing_name))
+            self.add_out_port(Port(Event, "o_" + thing_name))
 
         gcs = GCS("GCS", usv1, thing_names, thing_event_ids, n_offset)
         self.add_component(gcs)
@@ -370,14 +415,15 @@ class FogServer(Coupled):
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name))
 
         
-        '''
+
         # Inference Service 
         isv = Inference_Service("Inference_Service", usv1, delay=0)
         self.add_component(isv)
+        self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)
         self.add_coupling(isv.o_out, gcs.i_isv)
 
-
+        '''
         # Nitrates scope
         if SensorEventId.NOX.value in thing_event_ids:
             idx_n = thing_event_ids.index(SensorEventId.NOX.value)
@@ -386,5 +432,4 @@ class FogServer(Coupled):
             # bypass??
             self.add_coupling(self.get_in_port("i_" + thing_names[idx_n]), scope.i_in)
 
-
-        '''
+        '''       

@@ -300,14 +300,12 @@ class USV_Simple(Atomic):
     2008-09-12 00:31:30	47,50015983	-122,2999521	-0,010423905	NOX
     """
 
-    def __init__(self, name, datapath, simbody, thing_names, thing_event_ids, delay):
+    def __init__(self, name, datapath, simbody, delay):
         """Instancia la clase."""
         super().__init__(name)
         
         self.datapath = datapath
         self.simbody = simbody 
-        self.thing_names = thing_names
-        self.thing_event_ids = thing_event_ids
         self.delay = delay
         self.input_buffer = []
         self.data_buffer = []
@@ -396,7 +394,7 @@ class USV_Simple(Atomic):
         payload = row.to_dict() 
         self.msgout.timestamp = payload.pop('DateTime')
         self.o_out.add(self.msgout)
-        print(f'USV:{self.msgout.timestamp}')
+        print(f'USV:{self.msgout.timestamp}')   # CONFIRMACIÓN DE ENVÍO
 
         if self.SensorsOn == True:
           # Mensaje de salida para los sensores  

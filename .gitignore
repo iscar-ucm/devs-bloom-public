@@ -154,5 +154,6 @@ setup.cfg
 # Mac OS
 .DS_Store
 dataedge/Washington-1m-2008-09_UGRID.nc
-doc/case_of_use_matlab/Washington-1m-2008-09_UGRID.nc
-doc/water_research_matlab/Washington-1m-2008-09_UGRID.nc
+
+# Se ignoran los archivos de salida de los sensores 
+datafog/

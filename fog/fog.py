@@ -185,6 +185,7 @@ class GCS(Atomic):
                             super().activate(self.PHASE_CLOUD)  
                     # Se activa la salida del módulo GCS, se actualizan los mensajes de salida(bypass temporal) y se eliminan todos los mensajes de entrada:
                     self.msgout_usvp=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
+                    self.msgin_usv.payload.update({'db':self.db})
                     self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
                     self.msg = {}   
                     super().activate(self.PHASE_SENDING)
@@ -371,9 +372,10 @@ class Inference_Service(Atomic):
     '''
     PHASE_SENDING = "sending"     # Sending Data
 
-    def __init__(self, name: str, usv1, delay:float, log=False):    
+    def __init__(self, name: str, usv1,thing_names, delay:float, log=False):    
         super().__init__(name)
         self.usv1  = usv1
+        self.thing_names = thing_names
         self.delay = delay
         self.log   = False
 
@@ -489,7 +491,7 @@ class FogServer(Coupled):
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name)) 
 
         # Inference Service 
-        isv = Inference_Service("Inference_Service", usv1, delay=0, log=log)
+        isv = Inference_Service("Inference_Service", usv1,thing_names, delay=0, log=log)
         self.add_component(isv)
         self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)

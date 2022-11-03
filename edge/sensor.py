@@ -325,7 +325,7 @@ class SimSensor5(Atomic):
             mylon=self.msgin.payload['Lon']
             mydepth=self.msgin.payload['Depth']
             self.myvar=self.msgin.payload['Sensor']
-            value,t,ij,l=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
+            [value,t,ij,l]=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
             self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.sensorinfo.delay)
             data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Value': value, 'Bt':t,'Bij':ij,'Bl':l}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data) 

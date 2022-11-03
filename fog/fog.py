@@ -29,6 +29,7 @@ class GCS(Atomic):
     """Clase para guardar datos en la base de datos."""
     PHASE_SENDING = "sending" # Sending Data
     PHASE_CLOUD   = "sending_to_cloud" # Sending Data to Cloud 
+    PHASE_INIT    = "delt_int"
 
     def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, log=False, n_offset: int = 100):
         """Función de inicialización de atributos."""
@@ -83,6 +84,13 @@ class GCS(Atomic):
         self.N = self.mydata.DateTime.count() # N = 721
         self.ind = -1
 
+        delta = self.datetimes[0] - self.datetimes[-1]
+        row = self.mydata.iloc[0]   # Telemetría
+        payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
+        self.datetime = payload.pop('DateTime')
+        self.dataid = SensorEventId.SUN
+        self.msgout_sensor = Event(id=self.dataid.value, source=self.name, timestamp=self.datetime, payload=payload)
+        
         self.msgin_usv   = None
         self.msg         = {}
         self.db          = {}
@@ -108,9 +116,14 @@ class GCS(Atomic):
 
     def lambdaf(self):
         # Enviando el mensaje correspondiente al planificador y a los servicios necesarios
-        if self.phase == self.PHASE_SENDING:
+        if self.phase == self.PHASE_INIT:
+            self.o_sensor_s.add(self.msgout_sensor)
+            self.passivate()
+
+        if self.phase == self.PHASE_SENDING and self.ind < self.N:
             self.o_usvp.add(self.msgout_usvp)
             self.o_isv.add(self.msgout_isv)
+            self.o_sensor_s.add(self.msgout_sensor)
             if self.log is True: logger.info("GCS: DataTime = %s" %(self.msgout_usvp.timestamp))
             self.passivate()
 
@@ -133,18 +146,8 @@ class GCS(Atomic):
             payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
             self.datetime = payload.pop('DateTime')
             self.dataid = SensorEventId.SUN
-            self.o_sensor_s.add(Event(id=self.dataid.value, source=self.name, timestamp=self.datetime, payload=payload))
+            self.msgout_sensor = Event(id=self.dataid.value, source=self.name, timestamp=self.datetime, payload=payload)
             self.hold_in(PHASE_ACTIVE, delta)
-
-            if self.i_sensor_s:
-                self.msg_sun = self.i_sensor_s.get()
-                msg_list = list()
-                msg_list.append(self.msg_sun.id)
-                msg_list.append(self.msg_sun.source)
-                msg_list.append(self.msg_sun.timestamp)
-                for value in self.msg_sun.payload.values():
-                    msg_list.append(value)
-                self.db[sensor_s.name].loc[len(self.db[sensor_s.name])] = msg_list
 
         for thing_name in self.thing_names:
             if self.counter[thing_name] == self.n_offset:
@@ -166,7 +169,7 @@ class GCS(Atomic):
                 for thing_name in self.thing_names:
                     if self.get_in_port("i_" + thing_name).empty() is False:
                         self.msg[thing_name]= self.get_in_port("i_" + thing_name).get()
-                if len(self.msg) == 8 :
+                if len(self.msg) == 9 :
                     for thing_name in self.thing_names:
                         max_time = max(max_time,self.msg[thing_name].timestamp)
                         msg_list = list()
@@ -197,6 +200,16 @@ class GCS(Atomic):
             cmd: CommandEvent = self.i_cmd.get()
             if cmd.cmd == CommandEventId.CMD_FIX_OUTLIERS:
                 if self.log == True: logger.info("Command %s has been retired temporarily.", cmd.cmd.value)
+
+            if cmd.cmd == CommandEventId.CMD_START_SIM:
+                start: np.datetime = cmd.date
+                delstart = [s-start for s in self.datetimes]
+                self.ind = round(np.nanargmin(np.absolute(delstart)))  # Nearest time index
+                delta = (self.datetimes[self.ind] - start).total_seconds()
+                self.datetime = self.datetimes[self.ind]
+                if (delta >= 0):
+                    super().hold_in(self.PHASE_INIT, delta)
+
                 ## # Leemos los argumentos del comando
                 ## args = cmd.args.split(",")
                 ## if args[0] == self.parent.name:
@@ -210,7 +223,7 @@ class GCS(Atomic):
                 ##           + " para detectar outliers de " + thing_name + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
                 ##           + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
                 ##     self.fit_outlayers(thing_name)
-                super().activate()
+
 
     def fit_outlayers(self, edge_device):
         """
@@ -440,9 +453,6 @@ class FogServer(Coupled):
         self.add_in_port(Port(Event, "i_" + usv1.name))
         # Puerto de salida de la conexión con el USV
         self.add_out_port(Port(Event, "o_" + usv1.name))
-        # Puerto de entrada de la conexión con el sensor S
-        self.i_sensor = Port(Event, "i_sensor")
-        self.add_in_port(self.i_sensor)
         # Puerto de salida de la conexión con el sensor S
         self.o_sensor = Port(Event, "o_sensor")
         self.add_out_port(self.o_sensor)
@@ -460,8 +470,6 @@ class FogServer(Coupled):
         self.add_coupling(self.get_in_port("i_" + usv1.name), gcs.i_usv)
         # Conexión del puerto de salida del GCS con el puerto de salida del sensor Sun
         self.add_coupling(gcs.o_sensor_s,self.o_sensor)
-        # Conexión del puerto de entrada del GCS con el puerto de entrada del sensor Sun
-        self.add_coupling(self.i_sensor, gcs.i_sensor_s)
         
 
         # Conexiones de entrada-salida de datos

@@ -452,10 +452,10 @@ class ModelJournal(Coupled):
         sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log=log)
 
         thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
-                       sensor_v.name, sensor_x.name, sensor_y.name]
+                       sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]
         thing_event_ids = [sensor_info_n.id.value, sensor_info_o.id.value, sensor_info_a.id.value,
                            sensor_info_t.id.value, sensor_info_u.id.value, sensor_info_v.id.value,
-                           sensor_info_x.id.value, sensor_info_y.id.value]
+                           sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
          
         # Se crea la clase provisionar del barco
         usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log=log)
@@ -497,7 +497,7 @@ class ModelJournal(Coupled):
         self.add_coupling(sensor_t.o_out, fog.get_in_port("i_" + sensor_t.name))
         self.add_coupling(sensor_u.o_out, fog.get_in_port("i_" + sensor_u.name))
         self.add_coupling(sensor_v.o_out, fog.get_in_port("i_" + sensor_v.name))
-        self.add_coupling(sensor_s.o_out, fog.i_sensor)
+        self.add_coupling(sensor_s.o_out, fog.get_in_port("i_" + sensor_s.name))
         self.add_coupling(sensor_x.o_out, fog.get_in_port("i_" + sensor_x.name))
         self.add_coupling(sensor_y.o_out, fog.get_in_port("i_" + sensor_y.name))
         self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)

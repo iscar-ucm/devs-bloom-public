@@ -156,4 +156,4 @@ setup.cfg
 dataedge/Washington-1m-2008-09_UGRID.nc
 
 # Se ignoran los archivos de salida de los sensores 
-datafog/
+datafog/*.csv

@@ -1,5 +1,6 @@
 import logging
 import datetime as dt
+from xmlrpc.client import boolean
 import numpy as np
 import pandas as pd
 import os
@@ -303,18 +304,19 @@ class USV_Simple(Atomic):
     PHASE_SENDING = "sending"          # Sending Data
     PHASE_END     = "end"              # End USV process
 
-    def __init__(self, name, datapath, simbody, delay):
+    def __init__(self, name, datapath, simbody, delay, log=False):
         """Instancia la clase."""
         super().__init__(name)
         
         self.datapath = datapath
         self.simbody = simbody 
         self.delay = delay
+        self.log = log
         self.input_buffer = []
         self.data_buffer = []
 
         #Lectura de los ficheros correspondientes al datapath 
-        self.files = [f for f in os.listdir(self.datapath) if (f.startswith('Sensor2008_') and f.endswith(".csv"))]
+        self.files = [f for f in os.listdir(self.datapath) if (not f.startswith('Sensor2008_sun') and f.startswith('Sensor2008_') and f.endswith(".csv"))]
         self.file_name:str
 
         # Puerto de entrada para el uso de comandos
@@ -383,7 +385,7 @@ class USV_Simple(Atomic):
 
         data = {'X':self.X,'Xs':self.Xs, 'U':self.U,'P':self.P,
                 'xdel':self.xdel,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-        self.msgout_init=Event(id=self.name,source=self.name, payload=data)
+        self.msgout_init=Event(id='USV_Init',source=self.name, payload=data)
         super().passivate()
 
     def exit(self):
@@ -395,9 +397,10 @@ class USV_Simple(Atomic):
         if self.phase == self.PHASE_INIT:
           self.msgout_init.timestamp = self.datetime
           self.o_out.add(self.msgout_init)
-          print('------------------------------------------')
-          print(f'USV_INIT:{self.msgout_init.timestamp}')   # CONFIRMACIÓN DE ENVÍO
-
+          if self.log is True:
+            logger.info("------------------------------------------")
+            logger.info("USV_INIT: DataTime: %s" %(self.msgout_init.timestamp))
+          self.passivate()
           if self.msgout_init.payload['SensorsOn'] == True:
             # Mensaje de salida para los sensores  
             for self.file_name in self.files:
@@ -411,8 +414,6 @@ class USV_Simple(Atomic):
                     self.dataid = SensorEventId.DOX
                 case 'NOX':
                     self.dataid = SensorEventId.NOX
-                case 'sun':
-                    self.dataid = SensorEventId.SUN
                 case 'temperature':
                     self.dataid = SensorEventId.WTE
                 case 'U':
@@ -426,15 +427,15 @@ class USV_Simple(Atomic):
                 case _:
                       continue  
               self.o_sensor.add(Event(id=self.dataid.value, source=self.datapath+self.file_name, timestamp=self.datetime_sensor, payload=payload))
-              print(f'Sensor: {self.dataid.value}, datetime: {self.datetime_sensor}')
-          self.passivate()
+          
 
         if self.phase == self.PHASE_SENDING and self.ind < self.N:
           # Mensaje de salida del barco
           self.msgout.timestamp = self.datetime
           self.o_out.add(self.msgout)
-          print('------------------------------------------')
-          print(f'USV:{self.msgout.timestamp}')   # CONFIRMACIÓN DE ENVÍO
+          if self.log is True:
+            logger.info("------------------------------------------")
+            logger.info("USV: dateTime: %s" %(self.msgout_init.timestamp))
           self.passivate()
 
           if self.msgout.payload['SensorsOn'] == True:
@@ -465,7 +466,6 @@ class USV_Simple(Atomic):
                 case _:
                       continue  
               self.o_sensor.add(Event(id=self.dataid.value, source=self.datapath+self.file_name, timestamp=self.datetime, payload=payload))
-              print(f'Sensor: {self.dataid.value}, datetime: {self.datetime}')
 
     def deltint(self):
         """DEVS internal transition function."""

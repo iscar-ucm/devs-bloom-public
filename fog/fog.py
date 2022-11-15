@@ -8,13 +8,21 @@ una señal stop cuando la simulación termina, de forma que la función de
 transición externa de GCS, al detectar este final, guarde los datos
 remanentes.
 """
-from cmath import sqrt
+import math
 from queue import Empty
 from tkinter import EventType
 import pandas as pd
 import numpy as np
+from typing import Any
 import logging
 import datetime as dt
+from datetime import timedelta
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.patches import Circle
+from matplotlib.animation import FuncAnimation
+from matplotlib.collections import PatchCollection
+from scipy.spatial import KDTree
 from time import strftime, localtime
 from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Coupled, Port
@@ -27,8 +35,10 @@ logger = get_logger(__name__, logging.DEBUG)
 
 class GCS(Atomic):
     """Clase para guardar datos en la base de datos."""
-    PHASE_SENDING = "sending" # Sending Data
-    PHASE_CLOUD   = "sending_to_cloud" # Sending Data to Cloud 
+    PHASE_ISV     = "sending_to_ISV"           # Sending Data to Inference Service
+    PHASE_PLANNER = "sending_to_USV_PLANNER"   # Sending Data to USV planner
+    PHASE_SUN     = "sensing_to_sensor_sun"    # Sending Comand to Sun sensor
+    PHASE_CLOUD   = "sending_to_cloud"         # Sending Data to Cloud 
     PHASE_INIT    = "delt_int"
 
     def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, log=False, n_offset: int = 100):
@@ -115,63 +125,63 @@ class GCS(Atomic):
         pass
 
     def lambdaf(self):
-        # Enviando el mensaje correspondiente al planificador y a los servicios necesarios
-        if self.phase == self.PHASE_INIT:
+        # Enviando el mensaje correspondiente al planificador o a los servicios necesarios
+        if self.phase == self.PHASE_SUN and self.ind < self.N:
             self.o_sensor_s.add(self.msgout_sensor)
             self.passivate()
 
-        if self.phase == self.PHASE_SENDING and self.ind < self.N:
-            self.o_usvp.add(self.msgout_usvp)
+        if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
-            self.o_sensor_s.add(self.msgout_sensor)
-            if self.log is True: logger.info("GCS: DataTime = %s" %(self.msgout_usvp.timestamp))
+            if self.log is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
             self.passivate()
 
-            # Enviando datos a la capa CLOUD
+        if self.phase == self.PHASE_PLANNER and self.ind < self.N:
+            self.o_usvp.add(self.msgout_usvp)
+            if self.log is True: logger.info("GCS->USV_P: DataTime = %s" %(self.msgout_usvp.timestamp))
+            self.passivate()
+
         if self.phase == self.PHASE_CLOUD:    
             for thing_name in self.thing_names:
                 if self.counter[thing_name] >= self.n_offset:
                     df = self.db[thing_name].tail(self.n_offset)
                     self.get_out_port("o_" + thing_name).add(df)
+            self.passivate()
 
     def deltint(self):
         """DEVS internal transition function."""
         # Calcula delta tiempo hasta siguiente Telemetría
-        self.ind = self.ind + 1              # Actualizo indice a siguiente
-        if self.ind >= self.N:
-            self.passivate()
-        else:
-            delta = self.datetimes[self.ind] - self.datetimes[self.ind-1]
-            row = self.mydata.iloc[self.ind]   # Telemetría
-            payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
-            self.datetime = payload.pop('DateTime')
-            self.dataid = SensorEventId.SUN
-            self.msgout_sensor = Event(id=self.dataid.value, source=self.name, timestamp=self.datetime, payload=payload)
-            self.hold_in(PHASE_ACTIVE, delta)
-
-        for thing_name in self.thing_names:
-            if self.counter[thing_name] == self.n_offset:
-                self.counter[thing_name] = 0
-            if len(self.db_cache[thing_name]) > 0:
-                self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.edge_data_ids[thing_name]))
         self.passivate()
 
-    def deltext(self, e):
+    def deltext(self, e: Any):
         """Función DEVS de transición externa."""
         self.continuef(e)
         # Procesamos primero el puerto del barco:
-        if self.i_usv: self.msgin_usv = self.i_usv.get()
+        if self.i_usv: 
+           self.msgin_usv = self.i_usv.get()
+           self.max_time = self.msgin_usv.timestamp
         if (self.msgin_usv!=None):
-            # Tiempo de llegada del mensaje de entrada
-            max_time =self.msgin_usv.timestamp
             if self.msgin_usv.payload['SensorsOn'] == True:
                 # Se comprueban si todos los puertos de los sensores tienen mensajes de entrada:
                 for thing_name in self.thing_names:
                     if self.get_in_port("i_" + thing_name).empty() is False:
                         self.msg[thing_name]= self.get_in_port("i_" + thing_name).get()
-                if len(self.msg) == 9 :
+                        self.max_time = max(self.max_time,self.msg[thing_name].timestamp)
+                # Si falta únicamente el valor del sensor SUN
+                if len(self.msg) == len(self.thing_names)-1:
+                    self.ind = self.ind + 1              # Actualizo indice a siguiente
+                    if self.ind >= self.N:
+                        self.passivate()
+                    else:
+                        self.datetime = self.max_time.strftime("%Y-%m-%d %H:%M:%S")
+                        row = self.mydata.iloc[self.ind]   # Telemetría
+                        payload = row.to_dict() #{'DateTime': '', 'Lat': , 'Lon': , 'Depth': , 'Sensor': ''}
+                        self.dataid = SensorEventId.SUN
+                        self.msgout_sensor = Event(id=self.dataid.value, source=self.name, timestamp=self.datetime, payload=payload)
+                        self.activate(self.PHASE_SUN)
+                        
+                # Cuando se tiene la información de todos los sensores:
+                if len(self.msg) == len(self.thing_names):    
                     for thing_name in self.thing_names:
-                        max_time = max(max_time,self.msg[thing_name].timestamp)
                         msg_list = list()
                         msg_list.append(self.msg[thing_name].id)
                         msg_list.append(self.msg[thing_name].source)
@@ -184,18 +194,18 @@ class GCS(Atomic):
                         if self.counter[thing_name] == self.n_offset:
                             super().activate(self.PHASE_CLOUD)  
                     # Se activa la salida del módulo GCS, se actualizan los mensajes de salida(bypass temporal) y se eliminan todos los mensajes de entrada:
-                    self.msgout_usvp=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
                     self.msgin_usv.payload.update({'db':self.db})
-                    self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
+                    self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.max_time,payload=self.msgin_usv.payload)
                     self.msg = {}   
-                    super().activate(self.PHASE_SENDING)
-                else:
-                    super().passivate()
-            else:
-                super().activate(self.PHASE_SENDING)
-                self.msgout_usvp=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
-                self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=max_time,payload=self.msgin_usv.payload)
+                    super().activate(self.PHASE_ISV)
+            else:           
+                self.msgout_isv=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.msgin_usv.timestamp,payload=self.msgin_usv.payload)
+                super().activate(self.PHASE_ISV)  
 
+        if self.i_isv.empty() is False:
+            self.msgin_isv = self.i_isv.get()
+            self.msgout_usvp=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.max_time,payload=self.msgin_isv.payload)
+            super().activate(self.PHASE_PLANNER)
 
         if self.i_cmd.empty() is False:
             cmd: CommandEvent = self.i_cmd.get()
@@ -209,7 +219,7 @@ class GCS(Atomic):
                 delta = (self.datetimes[self.ind] - start).total_seconds()
                 self.datetime = self.datetimes[self.ind]
                 if (delta >= 0):
-                    super().hold_in(self.PHASE_INIT, delta)
+                    super().passivate()
 
                 ## # Leemos los argumentos del comando
                 ## args = cmd.args.split(",")
@@ -310,7 +320,7 @@ class Usv_Planner(Atomic):
         #if self.boolean == True:
         if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
-            if self.log is True: logger.info("PLANNER: datetime = %s" % (self.msgout.timestamp))
+            if self.log is True: logger.info("PLANNER->USV: datetime = %s" % (self.msgout.timestamp))
             self.passivate()
 
     def deltint(self):
@@ -323,42 +333,9 @@ class Usv_Planner(Atomic):
         """DEVS external transition function."""
         if (self.i_in.empty() is False):
             self.msgin = self.i_in.get()
-            # Se recogen los valores entregados por el GCS               
-            self.X         = self.msgin.payload['X']
-            self.Xs        = self.msgin.payload['Xs']
-            self.U         = self.msgin.payload['U']
-            self.P         = self.msgin.payload['P']
-            self.xdel      = self.msgin.payload['xdel']
-            self.SensorsOn = self.msgin.payload['SensorsOn']
-            self.Bloom     = self.msgin.payload['Bloom']
-            # Si el barco tiene batería:
-            if self.X[0] > 0:
-                if self.U[1] >  self.maxspeed: self.U[1] =  self.maxspeed
-                if self.U[2] >  self.maxspeed: self.U[2] =  self.maxspeed
-                if self.U[1] < -self.maxspeed: self.U[1] = -self.maxspeed
-                if self.U[2] < -self.maxspeed: self.U[2] = -self.maxspeed
-                # Despl      = Electro   + Solar     - Propulsón
-                self.xdel[0] = self.U[0] + self.P[0] - 30*sqrt(self.U[1]^2 + self.U[2]^2)
-                self.xdel[1] = self.U[1] + self.k2d*self.P[1] 
-                self.xdel[2] = self.U[2] + self.k2d*self.P[2] 
-            else:
-                self.X[0]    = 0
-                self.xdel[0] = self.P[0]
-                self.xdel[1] = 0
-                self.xdel[2] = 0
-            
-            # El planificador calcula el estado final del barco
-            self.X = [self.X[0]+self.xdel[0], self.X[1]+self.xdel[1], self.X[2]+self.xdel[2] ]
-
-            # Se ajusta el valor máximo de la batería
-            if self.X[0] > 1:
-                self.X[0] = 1
-            
-            # Se construye la trama de datos a enviar:
             self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.delay)
-            data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
-                    'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-            self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
+            #bypass temporal
+            self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=self.msgin.payload)
             super().activate(self.PHASE_SENDING)
 
 
@@ -399,6 +376,17 @@ class Inference_Service(Atomic):
     
     def initialize(self):
         # Wait for a resquet
+        self.tau = 100 # Tiempo
+        self.lyr = 54 # Capas de profundidad (54 = superficie)
+        self.ip  = 9 # índice de posición de la partícula de bloom
+        
+        self.kdecline = 1/6 # Constante de decrecimiento
+        self.kgrow    = 1 # Constante de crecimiento
+        self.k2d      = 1/60 # Constante de desplazamiento
+
+        self.kbreath  = 0.05 # Constante de respiración
+        self.kphoto   = 5 # Constante de fotosíntesis
+
         self.msgout = None
         self.passivate()         
       
@@ -411,25 +399,110 @@ class Inference_Service(Atomic):
         self.continuef(e)
         if (self.i_in.empty() is False):
             self.msgin = self.i_in.get()
-            # Se recogen los valores entregados por el GCS               
-            self.X         = self.msgin.payload['X']
-            self.Xs        = self.msgin.payload['Xs']
-            self.U         = self.msgin.payload['U']
-            self.P         = self.msgin.payload['P']
-            self.xdel      = self.msgin.payload['xdel']
-            self.SensorsOn = self.msgin.payload['SensorsOn']
-            self.Bloom     = self.msgin.payload['Bloom']
+            if self.msgin.id == 'USV_Init':
+                self.ip        = 9
+                self.lonc      = self.msgin.payload['lonc']
+                self.latc      = self.msgin.payload['latc']
+                self.lon       = self.msgin.payload['lon']
+                self.lat       = self.msgin.payload['lat']
+                self.nv        = self.msgin.payload['nv']  
+                self.BELV      = self.msgin.payload['BELV']
+                self.WSEL      = self.msgin.payload['WSEL']
+                self.temp      = self.msgin.payload['temp']
+                self.RSSBC     = self.msgin.payload['RSSBC']
+                self.CUV       = self.msgin.payload['CUV']
+                self.blayer    = self.msgin.payload['blayer']
+                self.time      = self.msgin.payload['time']
+                self.maptree   = self.msgin.payload['maptree']
+                self.x0        = self.msgin.payload['x0']
+                self.x         = self.msgin.payload['x']
+                self.u         = self.msgin.payload['u']
+                self.xs        = self.msgin.payload['xs']
+                self.uw        = self.msgin.payload['uw']
+                self.vw        = self.msgin.payload['vw']
+                self.ww        = self.msgin.payload['ww']
+                self.p         = self.msgin.payload['p']
+                self.xdel      = self.msgin.payload['xdel']
+                self.SensorsOn = self.msgin.payload['SensorsOn']
+                self.Bloom     = self.msgin.payload['Bloom']
+                self.sigma     = self.msgin.payload['sigma']
+                self.db        = self.msgin.payload['db']
+                self.lonf      = self.lon[self.nv-1]####### BEA, AQUI DA FALLO!! : index 1210 is out of bounds for axis 0 with size 1183
+                self.latf      = self.lat[self.nv-1]####### BEA, AQUI TAMBIÉN!!  : index 1210 is out of bounds for axis 0 with size 1183
+                self.z         = self.BELV[0, :] + np.transpose(self.sigma) * (self.WSEL[self.tau - 1, :] - self.BELV[0, :]) # AQUI TAMBIEEÉN
+                self.depth     = self.WSEL[self.tau - 1, :] - self.z
+                self.sigma[self.sigma == 0] = float("NAN")
+                self.datime    = self.msgin.timestamp
+                self.NOX        = np.array()
+                self.DOX        = np.array()
+                self.ALG        = np.array()
+                self.WTE        = np.array()
+                self.WFU        = np.array()
+                self.WFV        = np.array()
+                self.WFX        = np.array()
+                self.WFY        = np.array()
+                self.SUN        = np.array() 
 
-            # A CONTINUACIÓN SE REALIZAN LAS OPERACIONES NECESARIAS :
-            ##############################################
+                for thing_name in self.thing_names:
+                    if self.db[thing_name].id == "NOX":
+                        np.append(self.NOX, self.db[thing_name])
+                    if self.db[thing_name].id == "DOX":
+                        np.append(self.DOX, self.db[thing_name])
+                    if self.db[thing_name].id == "ALG":
+                        np.append(self.ALG, self.db[thing_name])
+                    if self.db[thing_name].id == "WTE":
+                        np.append(self.WTE, self.db[thing_name])
+                    if self.db[thing_name].id == "WFU":
+                        np.append(self.WFU, self.db[thing_name])
+                    if self.db[thing_name].id == "WFV":
+                        np.append(self.WFV, self.db[thing_name])
+                    if self.db[thing_name].id == "WFX":
+                        np.append(self.WFX, self.db[thing_name])
+                    if self.db[thing_name].id == "WFY":
+                        np.append(self.WFY, self.db[thing_name])
+                    if self.db[thing_name].id == "NOX":
+                        np.append(self.NOX, self.db[thing_name])
+                    
+                # TE DEJO UN EJEMPLO DE SENSOR : print(self.db["SimSenN"]) =
+                #        id       source      timestamp             Time     Lat      Lon         Depth  NOX  Bt  Bij  Bl
+                #    0  NOX      SimSenN      2008-08-23 00:00:06     0      47.505   -122.215    0.0    0.4   0  9    54
+                
+                if self.datetime.hour == 0:
+                    self.x = [0, self.lonc[self.ip], self.latc[self.ip]]
+                    bloom = False
+                # Calculamos las nuevas posiciones
+                _, ip = self.maptree.query([self.xs[1], self.xs[2]]) # ip del barco
+                # Calculamos la respiración y la fotosíntesis
+                breath = self.NOX[self.lyr][self.ip] * self.DOX[sel.lyr][self.ip]
+                photosynthesis = self.NOX[self.lyr][self.ip] * self.SUN
+                # ux(0) = food, ux(1) = x axis water speed, ux(2) = y axis water speed
+                ux = [self.kbreath * breath + self.kphoto * photosynthesis, self.u[self.lyr][self.ip], self.v[self.lyr][self.ip]]
+                # Lógica del bloom
+                self.Bloom = self.bloomlog(self.DOX[self.lyr][self.ip], self.Bloom)  
+                # Llamada a dinámica del bloom
+                self.x = self.bloomdyn(x, ux, bloom, self.x0)
 
-            # Se construye la trama de datos a enviar:
-            self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.delay)
-            data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
-                    'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-            self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
-            super().activate(self.PHASE_SENDING)
-            
+                #####  HASTA AQUÍ ESTÁ MODIFICADO, creo que hya que tener en cuenta frame para recorrer cada
+                #####  array de los sensores pero no tengo mucha idea :(
+
+            if self.msgin.id == 'USV':    
+                # Se recogen los valores entregados por el GCS               
+                self.x         = self.msgin.payload['x']
+                self.u         = self.msgin.payload['u']
+                self.p         = self.msgin.payload['p']
+                self.SensorsOn = self.msgin.payload['SensorsOn']
+                self.Bloom     = self.msgin.payload['Bloom']
+                # ......
+
+                # A CONTINUACIÓN SE REALIZAN LAS OPERACIONES NECESARIAS :
+                ##############################################
+
+                # Se construye la trama de datos a enviar:
+                self.datetime=self.msgin.timestamp+dt.timedelta(seconds=self.delay)
+                data = {'x':self.x,'u':self.u,'p':self.p,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+                self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
+                super().activate(self.PHASE_SENDING)
+                
         # A fututo, se implementará la entradad de comandos del generador
         # if (self.i_cmd.empty() is False):
 
@@ -437,12 +510,42 @@ class Inference_Service(Atomic):
         """DEVS output function."""
         if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
-            if self.log is True: logger.info("ISV: datetime = %s" % (self.msgout.timestamp))
+            if self.log is True: logger.info("ISV->GCS: datetime = %s" % (self.msgout.timestamp))
             self.passivate()
             
     def deltint(self):
         pass
 
+    def bloomdyn(self,x, u, bloom, x0):
+    # This function implements a simplyfied dynamic if the bloom
+    # x(0) = size, x(1) = lon, x(2) = lat, x(3) = time of last update
+    # u(0) = Nfood, u(1) = x axis water speed, u(2) = y axis water speed
+        if bloom:
+            x[0] = x[0] + self.kgrow * u[0] - self.kdecline * x[0]
+            x[1] = x[1] + self.k2d   * u[1]
+            x[2] = x[2] + self.k2d   * u[2]
+        else:
+            x[0] = x[0] + self.kgrow * u[0] - self.kdecline * x[0]
+            x[1] = x0[1]
+            x[2] = x0[2]
+        if x[0] > 10: # Control del tamaño
+            x[0] = 10
+        return x
+
+    #Lógica del bloom
+    def bloomlog(self,dox, bloom):
+        # Is It a Bloom? At actual position
+        # Rich in oxigen => It is a bloom
+        # Poor in oxigen => It is not a bloom
+        # Other case bypass bloom
+        b = bloom
+        if dox > 20:
+            b = True
+        if dox < 15:
+            b = False
+        return b
+
+        
 class FogServer(Coupled):
     """Clase acoplada FogServer."""    
     def __init__(self, name, usv1, thing_names: list, thing_event_ids: list, sensor_s, log=False, n_offset: int = 100):

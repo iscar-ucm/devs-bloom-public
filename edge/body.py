@@ -268,11 +268,15 @@ class SimBody5:
         self.simbody = netCDF4.Dataset(bodyfile)    
         self.lat = np.array(self.simbody['latc'])     # float32 latc(CELL)
         self.lon = np.array(self.simbody['lonc'])     # float32 lonc(CELL)
+        self.nv = np.array(self.simbody['nv'])        # float32 nv(CELL)
         self.time= np.array(self.simbody['time'])     # float64 time(TIME), Dias desde 20050101
-        self.wsel= np.array(self.simbody['WSEL'])     # float32 WSEL(TIME, CELL) 
+        self.time= np.moveaxis(self.time, 0 ,-1)
         self.belv = np.array(self.simbody['BELV'])[0] # float32 BELV(TIME, CELL), 
+        self.wsel = np.array(self.simbody['WSEL'])    # float32 WSEL(TIME, CELL), 
         self.layers= np.array(self.simbody['layers']) # int8 layers(CELL)
-        self.temp= np.array(self.simbody['temperature'])
+        self.temp = np.array(self.simbody['temperature'])
+        self.rssbc = np.array(self.simbody['RSSBC'])
+        self.cuv = np.array(self.simbody['CUV'])
         self.blayer= np.array(self.simbody['bottom_layer']) #int8 bottom_layer(CELL)
         self.sigma=np.array(self.simbody['sigma'])    # float32 sigma(CELL, KC)
         self.sun= np.array(self.simbody['sun'])

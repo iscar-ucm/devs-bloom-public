@@ -4,6 +4,7 @@ from xmlrpc.client import boolean
 import numpy as np
 import pandas as pd
 import os
+import math
 from typing import Any
 from scipy.spatial import KDTree
 from xdevs import get_logger, PHASE_ACTIVE
@@ -358,33 +359,46 @@ class USV_Simple(Atomic):
         self.N = self.mydata[self.file_name].DateTime.count() # N = 721
         self.ind = -1
         # Valores del estado del barco:
-        #X[1]=power             X[2]=lon            X[3]=lat
-        #U(1)=charger           U(2)=eastspeed      U(3)=nordspeed          U(4)=time of actuator activation 
-        #P(1)=solarpower        P(2)=eastwaterspeed P(3)=nordwaterspeed
+        # x(0) = power        x(1) = lon             x(2) = lat
+        # u(0) = charger      u(1) = eastspeed       u(2) = nordspeed        u(3) = time of actuator activation 
+        # p(0) = solarpower   p(1) = eastwaterspeed  p(2) = nordwaterspeed
         # Estado incial del barco:
-        self.ip        = 9
         self.lyers     = range(1,55,1)
+        # VARIABLES A ENVIAR
+        self.ip        = 9
         self.lonc      = self.simbody.lon
         self.latc      = self.simbody.lat
+        self.lon       = self.simbody.lon
+        self.lat       = self.simbody.lat
+        self.nv        = self.simbody.nv
+        self.sigma     = self.simbody.sigma
+        self.BELV      = self.simbody.belv
+        self.WSEL      = self.simbody.wsel
         self.sun       = self.simbody.sun
         self.temp      = self.simbody.temp
-        self.U         = self.simbody.u           # Velocidad del agua este(m/s)
-        self.V         = self.simbody.v           # Velocidad del agua norte(m/s)
+        self.RSSBC     = self.simbody.rssbc
+        self.CUV       = self.simbody.cuv
+        self.blayer    = self.simbody.blayer
+        self.time      = self.simbody.time
+        self.uw        = self.simbody.u           # Velocidad del agua este(m/s)
+        self.vw        = self.simbody.v           # Velocidad del agua norte(m/s)
+        self.ww        = self.simbody.w           # Velocidad del agua arriba(m/s)
         self.seccion   = range(0,200,1)
         self.map       = np.c_[self.lonc[self.seccion].ravel(), self.latc[self.seccion].ravel()] 
         self.maptree   = KDTree(self.map)
-        self.X0        = [0,   self.lonc[self.ip],  self.latc[self.ip]]
-        self.X         = self.X0
-        self.Xs        = [0.5, self.X0[1], self.X0[2]]
-        self.P         = [0,0,0]
+        self.x0        = [0,   self.lonc[self.ip],  self.latc[self.ip]]
+        self.x         = self.x0
+        self.xs        = [0.5, self.x0[1], self.x0[2]]
+        self.p         = [0,0,0]
+        self.u         = [0,0,0]
         self.xdel      = [0,0,0]
-        self.uxs       = [0,0,0]
-        self.pxs       = [0,0,0]
         self.SensorsOn = True
         self.Bloom     = False
 
-        data = {'X':self.X,'Xs':self.Xs, 'U':self.U,'P':self.P,
-                'xdel':self.xdel,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+        data = {'lonc':self.lonc, 'latc':self.latc, 'lon':self.lon, 'lat':self.lat, 'nv': self.nv, 'sigma': self.sigma,
+                'BELV': self.BELV,'WSEL': self.WSEL,'temp': self.temp,'RSSBC':self.RSSBC,'CUV':self.CUV,'blayer':self.blayer,
+                'time':self.time,'maptree':self.maptree,'x0':self.x0, 'x':self.x, 'u':self.u, 'xs':self.xs, 'uw':self.uw, 'vw':self.vw, 
+                'ww':self.ww, 'p':self.p,'xdel':self.xdel,'SensorsOn':self.SensorsOn, 'Bloom':self.Bloom}
         self.msgout_init=Event(id='USV_Init',source=self.name, payload=data)
         super().passivate()
 
@@ -399,7 +413,7 @@ class USV_Simple(Atomic):
           self.o_out.add(self.msgout_init)
           if self.log is True:
             logger.info("------------------------------------------")
-            logger.info("USV_INIT: DataTime: %s" %(self.msgout_init.timestamp))
+            logger.info("USV_INIT->GCS: DataTime: %s" %(self.msgout_init.timestamp))
           self.passivate()
           if self.msgout_init.payload['SensorsOn'] == True:
             # Mensaje de salida para los sensores  
@@ -435,7 +449,7 @@ class USV_Simple(Atomic):
           self.o_out.add(self.msgout)
           if self.log is True:
             logger.info("------------------------------------------")
-            logger.info("USV: dateTime: %s" %(self.msgout_init.timestamp))
+            logger.info("USV->GCS: dateTime: %s" %(self.msgout.timestamp))
           self.passivate()
 
           if self.msgout.payload['SensorsOn'] == True:
@@ -477,59 +491,51 @@ class USV_Simple(Atomic):
             #Refrencia del último fichero:
             delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
             self.datetime = (self.datetimes[self.file_name][self.ind])
+            self.hour = self.datetime.hour
             self.hours = self.datetimes[self.file_name][self.ind].hour
-            for self.lyr in self.lyers:
+
+            #DINÁMICA DEL BARCO:
+            maxspeed = 0.002
+            for lyr in self.lyers:
               # Estado incial:
-              if (self.hours == 0):
-                self.X      = self.X0
-                self.Bloom  = False
-                vtemp       = self.temp[int(self.ip), self.lyr, self.ind]
-                vhour       = self.hours
-                vpwr        = self.Xs[0]
 
-              # Dinámica del barco
-              # x = bloomdyn(x,ux,bloom,x0);
-              #Error del barco
-              self.eu=self.X[1] - self.Xs[1]
-              self.ev=self.X[2] - self.Xs[2]
+              if self.x[0] > 0:
+                  if self.u[1] > maxspeed: self.u[1] = maxspeed
+                  if self.u[2] > maxspeed: self.u[2] = maxspeed
+                  if self.u[1] < -maxspeed: self.u[1] = -maxspeed
+                  if self.u[2] < -maxspeed: self.u[2] = -maxspeed
+                  self.xdel[0] = self.u[0] + self.p[0] - 30 * math.sqrt(self.u[1]*2 + self.u[2]*2) # Electrónica + Solar - Propulsion
+                  k2d = 1 / 100
+                  self.xdel[1] = self.u[1] + k2d * self.p[1]
+                  self.xdel[3] = self.u[2] + k2d * self.p[2]
+              else:
+                  self.x[0]    = 0
+                  self.xdel[0] = self.p[0] # Solar
+                  self.xdel[1] = 0
+                  self.xdel[2] = 0
 
-              #Entradas del barco
-              self.uxs[0] = -0.003                              #Consumo Electrónica (Puede ser cargador)
-              self.uxs[1] = 1*self.eu                           #Control Action
-              self.uxs[2] = 1*self.ev
-              self.pxs[0] = 0.04*self.sun[self.ind];            #Sun Raditation
-              self.pxs[1] = self.U[self.ip,self.lyr,self.ind]   #Water drag Perturbation
-              self.pxs[2] = self.V[self.ip,self.lyr,self.ind]
-              #Dinámica del barco
-              #self.xs=shipdyn(xs,uxs,pxs):
-              #if xs(1)>1:
-              #  xs(1)=1;end %Limit maximum power
-              # Entrada del modelo del bloom:
-              #Prepare KDtree
-              
-              [self.ip, self.dist] = self.maptree.query([self.Xs[1], self.Xs[2]])
-              self.ip = int(self.ip) 
+              self.x[0] += self.xdel[0]
+              self.x[1] += self.xdel[1]
+              self.x[2] += self.xdel[2]
+              if self.x[0] > 1: # Control de la batería
+                  self.x[0] = 1
 
-            self.hold_in(PHASE_ACTIVE, delta.seconds)
+            # Implementación del comportamiento del barco 
+            # POSIBLEMENTE, HAYA QUE DIVIDIR VALORES ENTRE 30 MINS
+            data = {'x':self.x,'u':self.u,'p':self.p,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+            self.msgout=Event(id='USV',source=self.name,timestamp=self.datetime,payload=data)
+            self.hold_in(self.PHASE_SENDING, delta.seconds)
 
     def deltext(self,e: Any):
         self.continuef(e)
         """DEVS external transition function."""
         if (self.i_in.empty() is False) and (self.ind < self.N):                   
             self.msgin = self.i_in.get()
-            self.X         = self.msgin.payload['X']
-            self.Xs        = self.msgin.payload['Xs']
-            self.U         = self.msgin.payload['U']
-            self.P         = self.msgin.payload['P']
-            self.xdel      = self.msgin.payload['xdel']
+            self.x         = self.msgin.payload['x']
+            self.u         = self.msgin.payload['u']
+            self.p         = self.msgin.payload['p']
             self.SensorsOn = self.msgin.payload['SensorsOn']
             self.Bloom     = self.msgin.payload['Bloom']
-            # Implementación del comportamiento del barco 
-            # DIVIDIR VALORES ENTRE 30 MINS
-            data = {'X':self.X,'Xs':self.Xs,'U':self.U,'P':self.P,'xdel':self.xdel,
-                    'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-            self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
-            self.activate(self.PHASE_SENDING)
 
         if (self.i_cmd.empty() is False):
             cmd: CommandEvent = self.i_cmd.get()
@@ -551,7 +557,7 @@ class USV_Simple(Atomic):
                     super().passivate()
 
             if cmd.cmd == CommandEventId.CMD_STOP_SIM:
-              super().passivate(self.PHASE_END)
+              super().passivate()
 
 
 class TestInput(Atomic):

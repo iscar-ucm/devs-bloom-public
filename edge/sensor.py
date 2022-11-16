@@ -337,7 +337,7 @@ class SimSensor5(Atomic):
         if self.phase==self.PHASE_WORK:
             self.o_out.add(self.msgout)
             if self.log_Time is True:  logger.info("Sensor: %s: dateTime: %s" %(self.msgout.id,self.msgout.timestamp))
-            if self.log_Data is True: logger.info("Sensor: %s, valor = %s" %(self.myvar, self.value))
+            if self.log_Data is True: logger.info("Sensor: %s, Value = %s" %(self.msgout.id, self.msgout.payload['Value']))
             self.passivate()
 
 '''if __name__ == "__main__":

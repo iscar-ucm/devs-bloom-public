@@ -417,7 +417,7 @@ class USV_Simple(Atomic):
             logger.info("USV_INIT->GCS: DataTime: %s" %(self.msgout_init.timestamp))
           if self.log_Data is True:
             logger.info("------------------------------------------")
-            logger.info("USV_INIT->GCS: Data: xs = %s" %(self.xs))
+            logger.info("USV_INIT->GCS: Data: payload + simbody")
 
           self.passivate()
           if self.msgout_init.payload['SensorsOn'] == True:
@@ -457,7 +457,7 @@ class USV_Simple(Atomic):
             logger.info("USV->GCS: DataTime: %s" %(self.msgout_init.timestamp))
           if self.log_Data is True:
             logger.info("------------------------------------------")
-            logger.info("USV->GCS: Data: xs = %s" %(self.xs))
+            logger.info("USV->GCS: Data: %s" %(self.msgout.payload))
           self.passivate()
 
           if self.msgout.payload['SensorsOn'] == True:

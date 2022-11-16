@@ -134,7 +134,7 @@ class GCS(Atomic):
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
             if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
-            if self.log_Data is True: logger.info("GCS->ISV: Data = %s" %(self.msgout_isv.payload))
+            if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
             self.passivate()
 
         if self.phase == self.PHASE_PLANNER and self.ind < self.N:

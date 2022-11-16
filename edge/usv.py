@@ -305,14 +305,15 @@ class USV_Simple(Atomic):
     PHASE_SENDING = "sending"          # Sending Data
     PHASE_END     = "end"              # End USV process
 
-    def __init__(self, name, datapath, simbody, delay, log=False):
+    def __init__(self, name, datapath, simbody, delay,  log_Time=False, log_Data=False):
         """Instancia la clase."""
         super().__init__(name)
         
         self.datapath = datapath
         self.simbody = simbody 
         self.delay = delay
-        self.log = log
+        self.log_Time=log_Time
+        self.log_Data=log_Data
         self.input_buffer = []
         self.data_buffer = []
 
@@ -411,9 +412,13 @@ class USV_Simple(Atomic):
         if self.phase == self.PHASE_INIT:
           self.msgout_init.timestamp = self.datetime
           self.o_out.add(self.msgout_init)
-          if self.log is True:
+          if self.log_Time is True:
             logger.info("------------------------------------------")
             logger.info("USV_INIT->GCS: DataTime: %s" %(self.msgout_init.timestamp))
+          if self.log_Data is True:
+            logger.info("------------------------------------------")
+            logger.info("USV_INIT->GCS: Data: xs = %s" %(self.xs))
+
           self.passivate()
           if self.msgout_init.payload['SensorsOn'] == True:
             # Mensaje de salida para los sensores  
@@ -447,9 +452,12 @@ class USV_Simple(Atomic):
           # Mensaje de salida del barco
           self.msgout.timestamp = self.datetime
           self.o_out.add(self.msgout)
-          if self.log is True:
+          if self.log_Time is True:
             logger.info("------------------------------------------")
-            logger.info("USV->GCS: dateTime: %s" %(self.msgout.timestamp))
+            logger.info("USV->GCS: DataTime: %s" %(self.msgout_init.timestamp))
+          if self.log_Data is True:
+            logger.info("------------------------------------------")
+            logger.info("USV->GCS: Data: xs = %s" %(self.xs))
           self.passivate()
 
           if self.msgout.payload['SensorsOn'] == True:

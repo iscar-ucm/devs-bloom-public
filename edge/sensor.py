@@ -292,7 +292,7 @@ class SimSensor5(Atomic):
     PHASE_WORK = "work"       #Taking a measurement
     PHASE_DONE = "done"       #Send Measurement
 
-    def __init__(self,name,simbody,sensorinfo, log=False):       
+    def __init__(self,name,simbody,sensorinfo, log_Time=False, log_Data=False):       
         super().__init__(name)
         self.i_in = Port(Event, "i_int")    #Event to aks the mesaurements  
         self.add_in_port(self.i_in)         
@@ -300,7 +300,8 @@ class SimSensor5(Atomic):
         self.add_out_port(self.o_out)
         self.simbody=simbody                #Simulated Body in NetHFC4 format
         self.sensorinfo=sensorinfo          #The measurement takes delay seconds. 
-        self.log=log
+        self.log_Time=log_Time
+        self.log_Data=log_Data
     
     def initialize(self):
         # Wait for a resquet
@@ -325,9 +326,9 @@ class SimSensor5(Atomic):
             mylon=self.msgin.payload['Lon']
             mydepth=self.msgin.payload['Depth']
             self.myvar=self.msgin.payload['Sensor']
-            [value,t,ij,l]=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
+            [self.value,t,ij,l]=self.simbody.readvar(self.myvar,myt,mylat,mylon,mydepth)
             self.datetime=dt.datetime.fromisoformat(self.msgin.timestamp)+dt.timedelta(seconds=self.sensorinfo.delay)
-            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Value': value, 'Bt':t,'Bij':ij,'Bl':l}
+            data = {'Time':myt,'Lat':mylat,'Lon':mylon,'Depth':mydepth, 'Value': self.value, 'Bt':t,'Bij':ij,'Bl':l}
             self.msgout=Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data) 
             self.hold_in(self.PHASE_WORK,self.sensorinfo.delay)
             break
@@ -335,7 +336,8 @@ class SimSensor5(Atomic):
     def lambdaf(self):            
         if self.phase==self.PHASE_WORK:
             self.o_out.add(self.msgout)
-            if self.log is True:  logger.info("Sensor: %s: dateTime: %s" %(self.msgout.id,self.msgout.timestamp))
+            if self.log_Time is True:  logger.info("Sensor: %s: dateTime: %s" %(self.msgout.id,self.msgout.timestamp))
+            if self.log_Data is True: logger.info("Sensor: %s, valor = %s" %(self.myvar, self.value))
             self.passivate()
 
 '''if __name__ == "__main__":

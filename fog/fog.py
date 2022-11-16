@@ -41,14 +41,15 @@ class GCS(Atomic):
     PHASE_CLOUD   = "sending_to_cloud"         # Sending Data to Cloud 
     PHASE_INIT    = "delt_int"
 
-    def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, log=False, n_offset: int = 100):
+    def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, log_Time=False, log_Data=False,n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
         self.usv1 = usv1
         self.thing_names = thing_names
         self.thing_event_ids = {}
 
-        self.log = log
+        self.log_Time=log_Time
+        self.log_Data=log_Data
         self.n_offset = n_offset
         
         # Puertos de entrada de comandos
@@ -132,12 +133,14 @@ class GCS(Atomic):
 
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
-            if self.log is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
+            if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
+            if self.log_Data is True: logger.info("GCS->ISV: Data = %s" %(self.msgout_isv.payload))
             self.passivate()
 
         if self.phase == self.PHASE_PLANNER and self.ind < self.N:
             self.o_usvp.add(self.msgout_usvp)
-            if self.log is True: logger.info("GCS->USV_P: DataTime = %s" %(self.msgout_usvp.timestamp))
+            if self.log_Time is True: logger.info("GCS->USV_P: DataTime = %s" %(self.msgout_usvp.timestamp))
+            if self.log_Data is True: logger.info("GCS->ISV: Data = %s" %(self.msgout_usvp.payload))
             self.passivate()
 
         if self.phase == self.PHASE_CLOUD:    
@@ -274,12 +277,13 @@ class Usv_Planner(Atomic):
     '''
     PHASE_SENDING = "sending" # Sending Data
 
-    def __init__(self, name: str, delay:float, log=False):    
+    def __init__(self, name: str, delay:float, log_Time=False, log_Data=False):    
         """Instancia la clase."""
         super().__init__(name)
 
         self.delay = delay
-        self.log   = log
+        self.log_Time=log_Time
+        self.log_Data=log_Data
         self.input_buffer = []
         self.data_buffer = []
 
@@ -321,7 +325,8 @@ class Usv_Planner(Atomic):
         #if self.boolean == True:
         if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
-            if self.log is True: logger.info("PLANNER->USV: datetime = %s" % (self.msgout.timestamp))
+            if self.log_Time is True: logger.info("PLANNER->USV: datetime = %s" % (self.msgout.timestamp))
+            if self.log_Data is True: logger.info("PLANNER->USV: Data = %s" % (self.msgout.payload))
             self.passivate()
 
     def deltint(self):
@@ -350,12 +355,13 @@ class Inference_Service(Atomic):
     '''
     PHASE_SENDING = "sending"     # Sending Data
 
-    def __init__(self, name: str, usv1,thing_names, delay:float, log=False):    
+    def __init__(self, name: str, usv1,thing_names, delay:float, log_Time=False, log_Data=False):    
         super().__init__(name)
         self.usv1  = usv1
         self.thing_names = thing_names
         self.delay = delay
-        self.log   = False
+        self.log_Time=log_Time
+        self.log_Data=log_Data
 
         # Puerto de entrada de comandos(desde el Generador)
         self.i_cmd = Port(CommandEvent, "i_cmd")    
@@ -567,7 +573,8 @@ class Inference_Service(Atomic):
         """DEVS output function."""
         if self.phase == self.PHASE_SENDING:
             self.o_out.add(self.msgout)
-            if self.log is True: logger.info("ISV->GCS: datetime = %s" % (self.msgout.timestamp))
+            if self.log_Time is True: logger.info("ISV->GCS: datetime = %s" % (self.msgout.timestamp))
+            if self.log_Data is True: logger.info("ISV->GC: Data = %s" % (self.msgout.payload))
             self.passivate()
             
     def deltint(self):
@@ -605,7 +612,7 @@ class Inference_Service(Atomic):
         
 class FogServer(Coupled):
     """Clase acoplada FogServer."""    
-    def __init__(self, name, usv1, thing_names: list, thing_event_ids: list, sensor_s, log=False, n_offset: int = 100):
+    def __init__(self, name, usv1, thing_names: list, thing_event_ids: list, sensor_s, log_Data=False, log_Time=False, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
         self.i_cmd = Port(CommandEvent, "i_cmd")
@@ -625,7 +632,7 @@ class FogServer(Coupled):
             self.add_in_port(Port(Event, "i_" + thing_name))
             self.add_out_port(Port(Event, "o_" + thing_name))
 
-        gcs = GCS("GCS", usv1, thing_names, thing_event_ids, log=log, n_offset=n_offset)
+        gcs = GCS("GCS", usv1, thing_names, thing_event_ids, log_Time=log_Time, log_Data = log_Data, n_offset=n_offset)
         self.add_component(gcs)
         self.add_coupling(self.i_cmd, gcs.i_cmd)
         # Conexión del puerto de entrad del USV con la entrada del GCS
@@ -642,7 +649,7 @@ class FogServer(Coupled):
             self.add_coupling(gcs.get_out_port("o_" + thing_name), self.get_out_port("o_" + thing_name))
 
         # USVs planner
-        USVp = Usv_Planner("USVs_Planner", delay=0, log=log)
+        USVp = Usv_Planner("USVs_Planner", delay=0, log_Time=log_Time, log_Data = log_Data)
         self.add_component(USVp)
         # Conexión de salida del puerto del GCS con el puerto de entrada del planificador
         self.add_coupling(gcs.o_usvp, USVp.i_in)
@@ -651,7 +658,7 @@ class FogServer(Coupled):
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name)) 
 
         # Inference Service 
-        isv = Inference_Service("Inference_Service", usv1,thing_names, delay=0, log=log)
+        isv = Inference_Service("Inference_Service", usv1,thing_names, delay=0, log_Time=log_Time, log_Data = log_Data)
         self.add_component(isv)
         self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)

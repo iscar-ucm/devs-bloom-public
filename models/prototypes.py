@@ -423,7 +423,7 @@ class ModelOutliers(Coupled):
 class ModelJournal(Coupled):
     """Clase que implementa un modelo de la pila IoT como entidad virtual."""
     
-    def __init__(self, name: str, commands_path: str, simbody: SimBody5, log=False):
+    def __init__(self, name: str, commands_path: str, simbody: SimBody5, log_Time=False, log_Data=False):
         """Función de inicialización."""
         super().__init__(name)
         # Simulation file
@@ -441,15 +441,15 @@ class ModelJournal(Coupled):
         sensor_info_s = SensorInfo(id=SensorEventId.SUN, description="Sun radiation (n.u.)", delay=2, max=1.0, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_x = SensorInfo(id=SensorEventId.WFX, description="East wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
         sensor_info_y = SensorInfo(id=SensorEventId.WFY, description="Nord wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
-        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log=log)
-        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log=log)
-        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log=log)
-        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log=log)
-        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log=log)
-        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log=log)
-        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log=log)
-        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log=log)
-        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log=log)
+        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log_Time=log_Time, log_Data=log_Data)
+        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log_Time=log_Time, log_Data=log_Data)
+        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log_Time=log_Time, log_Data=log_Data)
+        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log_Time=log_Time, log_Data=log_Data)
+        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log_Time=log_Time, log_Data=log_Data)
+        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log_Time=log_Time, log_Data=log_Data)
+        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log_Time=log_Time, log_Data=log_Data)
+        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log_Time=log_Time, log_Data=log_Data)
+        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log_Time=log_Time, log_Data=log_Data)
 
         thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
                        sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]
@@ -458,10 +458,10 @@ class ModelJournal(Coupled):
                            sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
          
         # Se crea la clase provisionar del barco
-        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log=log)
+        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log_Time=log_Time, log_Data=log_Data)
         
         # TODO: Complete the FogServer definition
-        fog = FogServer("FogServer", usv1, thing_names, thing_event_ids, sensor_s, log=log)
+        fog = FogServer("FogServer", usv1, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
         # Capa Cloud:
         # cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name])
         # Components:
@@ -588,7 +588,7 @@ def test_journal():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log=True)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=False, log_Data=True)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

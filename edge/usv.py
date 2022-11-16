@@ -384,7 +384,7 @@ class USV_Simple(Atomic):
         self.vw        = self.simbody.v           # Velocidad del agua norte(m/s)
         self.ww        = self.simbody.w           # Velocidad del agua arriba(m/s)
         self.seccion   = range(0,200,1)
-        self.map       = np.c_[self.lonc[self.seccion].ravel(), self.latc[self.seccion].ravel()] 
+        self.map       = np.column_stack([self.lonc[self.seccion], self.latc[self.seccion]]) 
         self.maptree   = KDTree(self.map)
         self.x0        = [0,   self.lonc[self.ip],  self.latc[self.ip]]
         self.x         = self.x0
@@ -491,51 +491,47 @@ class USV_Simple(Atomic):
             #Refrencia del último fichero:
             delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
             self.datetime = (self.datetimes[self.file_name][self.ind])
-            self.hour = self.datetime.hour
-            self.hours = self.datetimes[self.file_name][self.ind].hour
-
-            #DINÁMICA DEL BARCO:
-            maxspeed = 0.002
-            for lyr in self.lyers:
-              # Estado incial:
-
-              if self.x[0] > 0:
-                  if self.u[1] > maxspeed: self.u[1] = maxspeed
-                  if self.u[2] > maxspeed: self.u[2] = maxspeed
-                  if self.u[1] < -maxspeed: self.u[1] = -maxspeed
-                  if self.u[2] < -maxspeed: self.u[2] = -maxspeed
-                  self.xdel[0] = self.u[0] + self.p[0] - 30 * math.sqrt(self.u[1]*2 + self.u[2]*2) # Electrónica + Solar - Propulsion
-                  k2d = 1 / 100
-                  self.xdel[1] = self.u[1] + k2d * self.p[1]
-                  self.xdel[3] = self.u[2] + k2d * self.p[2]
-              else:
-                  self.x[0]    = 0
-                  self.xdel[0] = self.p[0] # Solar
-                  self.xdel[1] = 0
-                  self.xdel[2] = 0
-
-              self.x[0] += self.xdel[0]
-              self.x[1] += self.xdel[1]
-              self.x[2] += self.xdel[2]
-              if self.x[0] > 1: # Control de la batería
-                  self.x[0] = 1
-
-            # Implementación del comportamiento del barco 
-            # POSIBLEMENTE, HAYA QUE DIVIDIR VALORES ENTRE 30 MINS
-            data = {'x':self.x,'u':self.u,'p':self.p,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
-            self.msgout=Event(id='USV',source=self.name,timestamp=self.datetime,payload=data)
-            self.hold_in(self.PHASE_SENDING, delta.seconds)
+            self.hold_in(PHASE_ACTIVE, delta.seconds)
 
     def deltext(self,e: Any):
         self.continuef(e)
         """DEVS external transition function."""
         if (self.i_in.empty() is False) and (self.ind < self.N):                   
             self.msgin = self.i_in.get()
-            self.x         = self.msgin.payload['x']
-            self.u         = self.msgin.payload['u']
-            self.p         = self.msgin.payload['p']
-            self.SensorsOn = self.msgin.payload['SensorsOn']
-            self.Bloom     = self.msgin.payload['Bloom']
+            self.uxs        = self.msgin.payload['uxs']
+            self.pxs        = self.msgin.payload['pxs']
+            self.SensorsOn  = self.msgin.payload['SensorsOn']
+            self.Bloom      = self.msgin.payload['Bloom']
+
+            #DINÁMICA DEL BARCO:
+            maxspeed = 0.002
+            # Estado incial:
+            if self.xs[0] > 0:
+              if self.uxs[1] > maxspeed:  self.uxs[1] = maxspeed
+              if self.uxs[2] > maxspeed:  self.uxs[2] = maxspeed
+              if self.uxs[1] < -maxspeed: self.uxs[1] = -maxspeed
+              if self.uxs[2] < -maxspeed: self.uxs[2] = -maxspeed
+              self.xdel[0] = self.uxs[0] + self.pxs[0] - 30 * math.sqrt(self.uxs[1]**2 + self.uxs[2]**2) # Electrónica + Solar - Propulsion
+              k2d = 1 / 100
+              self.xdel[1] = self.uxs[1] + k2d * self.pxs[1]
+              self.xdel[2] = self.uxs[2] + k2d * self.pxs[2]
+            else:
+              self.xs[0]   = 0
+              self.xdel[0] = self.pxs[0] # Solar
+              self.xdel[1] = 0
+              self.xdel[2] = 0
+
+            self.xs[0] += self.xdel[0]
+            self.xs[1] += self.xdel[1]
+            self.xs[2] += self.xdel[2]
+            if self.xs[0] > 1: # Control de la batería
+              self.xs[0] = 1
+
+            # Implementación del comportamiento del barco 
+            # POSIBLEMENTE, HAYA QUE DIVIDIR VALORES ENTRE 30 MINS
+            data = {'xs':self.xs,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+            self.msgout=Event(id='USV',source=self.name,timestamp=self.datetime,payload=data)
+            super().activate(self.PHASE_SENDING)
 
         if (self.i_cmd.empty() is False):
             cmd: CommandEvent = self.i_cmd.get()

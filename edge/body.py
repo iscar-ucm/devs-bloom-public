@@ -271,7 +271,7 @@ class SimBody5:
         self.nv = np.array(self.simbody['nv'])        # float32 nv(CELL)
         self.time= np.array(self.simbody['time'])     # float64 time(TIME), Dias desde 20050101
         self.time= np.moveaxis(self.time, 0 ,-1)
-        self.belv = np.array(self.simbody['BELV'])[0] # float32 BELV(TIME, CELL), 
+        self.belv = np.array(self.simbody['BELV'])    # float32 BELV(TIME, CELL), 
         self.wsel = np.array(self.simbody['WSEL'])    # float32 WSEL(TIME, CELL), 
         self.layers= np.array(self.simbody['layers']) # int8 layers(CELL)
         self.temp = np.array(self.simbody['temperature'])
@@ -348,7 +348,7 @@ class SimBody5:
                         value=float(self.simbody[myvar][t,ij].data)    
                         return value,t,ij,np.nan
                     else:
-                        depthrange=self.wsel[t,ij] - self.belv[ij]
+                        depthrange=self.wsel[t,ij] - self.belv[ij][0]
                         if mydepth<=depthrange:                     #Depth over Bottom? 
                             depth=np.nan*np.array(self.sigma[ij])
                             for ly in range(self.blayer[ij]-1,self.blayer[ij]+self.layers[ij]-1):

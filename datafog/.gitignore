@@ -1,0 +1,4 @@
+*
+# Se ignoran los archivos dentro del datafog/ menos el archivo gitignore (única forma de subir una carpeta vacía a github)
+*
+!.gitignore

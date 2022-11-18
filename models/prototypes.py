@@ -461,7 +461,7 @@ class ModelJournal(Coupled):
         usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log_Time=log_Time, log_Data=log_Data)
         
         # TODO: Complete the FogServer definition
-        fog = FogServer("FogServer", usv1, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
+        fog = FogServer("FogServer", usv1.name, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
         # Capa Cloud:
         # cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name])
         # Components:
@@ -588,7 +588,7 @@ def test_journal():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=False, log_Data=True)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

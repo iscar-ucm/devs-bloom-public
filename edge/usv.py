@@ -454,7 +454,7 @@ class USV_Simple(Atomic):
           self.o_out.add(self.msgout)
           if self.log_Time is True:
             logger.info("------------------------------------------")
-            logger.info("USV->GCS: DataTime: %s" %(self.msgout_init.timestamp))
+            logger.info("USV->GCS: DataTime: %s" %(self.msgout.timestamp))
           if self.log_Data is True:
             logger.info("------------------------------------------")
             logger.info("USV->GCS: Data: %s" %(self.msgout.payload))

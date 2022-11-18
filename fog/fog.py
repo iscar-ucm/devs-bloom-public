@@ -41,10 +41,9 @@ class GCS(Atomic):
     PHASE_CLOUD   = "sending_to_cloud"         # Sending Data to Cloud 
     PHASE_INIT    = "delt_int"
 
-    def __init__(self, name: str,usv1, thing_names: list, thing_event_ids: list, log_Time=False, log_Data=False,n_offset: int = 100):
+    def __init__(self, name: str, usv_name: str, thing_names: list, thing_event_ids: list, log_Time=False, log_Data=False,n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
-        self.usv1 = usv1
         self.thing_names = thing_names
         self.thing_event_ids = {}
 
@@ -355,9 +354,8 @@ class Inference_Service(Atomic):
     '''
     PHASE_SENDING = "sending"     # Sending Data
 
-    def __init__(self, name: str, usv1,thing_names, delay:float, log_Time=False, log_Data=False):    
+    def __init__(self, name: str, usv_name: str,thing_names, delay:float, log_Time=False, log_Data=False):    
         super().__init__(name)
-        self.usv1  = usv1
         self.thing_names = thing_names
         self.delay = delay
         self.log_Time=log_Time
@@ -379,21 +377,16 @@ class Inference_Service(Atomic):
         self.o_info = Port(Event, "o_info")   
         self.add_out_port(self.o_info)
 
-
-    
     def initialize(self):
         # Wait for a resquet
         self.tau = 100 # Tiempo
         self.lyr = 54 # Capas de profundidad (54 = superficie)
         self.ip  = 9 # índice de posición de la partícula de bloom
-        
         self.kdecline = 1/6 # Constante de decrecimiento
         self.kgrow    = 1 # Constante de crecimiento
         self.k2d      = 1/60 # Constante de desplazamiento
-
         self.kbreath  = 0.05 # Constante de respiración
         self.kphoto   = 5 # Constante de fotosíntesis
-
         self.NOX        = list()
         self.DOX        = list()
         self.ALG        = list()
@@ -403,9 +396,7 @@ class Inference_Service(Atomic):
         self.WFX        = list()
         self.WFY        = list()
         self.SUN        = list()
-        
         self.frame      = 0
-
         self.msgout = None
         self.passivate()         
       
@@ -446,13 +437,12 @@ class Inference_Service(Atomic):
                 self.Bloom     = self.msgin.payload['Bloom']
                 self.sigma     = self.msgin.payload['sigma']
                 self.db        = self.msgin.payload['db']
-                #self.lonf      = self.lon[self.nv-1]####### BEA, AQUI DA FALLO!! : index 1210 is out of bounds for axis 0 with size 1183
-                #self.latf      = self.lat[self.nv-1]####### BEA, AQUI TAMBIÉN!!  : index 1210 is out of bounds for axis 0 with size 1183
+                #self.lonf      = self.lon[self.nv-1]
+                #self.latf      = self.lat[self.nv-1]
                 self.z         = self.BELV[0, :] + np.transpose(self.sigma) * (self.WSEL[self.tau - 1, :] - self.BELV[0, :]) # AQUI TAMBIEEÉN
                 self.depth     = self.WSEL[self.tau - 1, :] - self.z
                 self.sigma[self.sigma == 0] = float("NAN")
                 self.datetime    = self.msgin.timestamp
-   
 
                 for thing_name in self.thing_names:
                     if self.db[thing_name].id == 'NOX':
@@ -509,7 +499,6 @@ class Inference_Service(Atomic):
                 self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
                 self.frame+=1
                 super().activate(self.PHASE_SENDING)
-
 
             if self.msgin.id == 'USV':    
                 self.xs        = self.msgin.payload['xs']
@@ -612,16 +601,16 @@ class Inference_Service(Atomic):
         
 class FogServer(Coupled):
     """Clase acoplada FogServer."""    
-    def __init__(self, name, usv1, thing_names: list, thing_event_ids: list, sensor_s, log_Data=False, log_Time=False, n_offset: int = 100):
+    def __init__(self, name, usv_name:str, thing_names: list, thing_event_ids: list, sensor_s, log_Data=False, log_Time=False, n_offset: int = 100):
         """Inicialización de atributos."""
         super().__init__(name)
         self.i_cmd = Port(CommandEvent, "i_cmd")
         self.add_in_port(self.i_cmd)
 
         # Puerto de entrada de la conexión con el USV
-        self.add_in_port(Port(Event, "i_" + usv1.name))
+        self.add_in_port(Port(Event, "i_" + usv_name))
         # Puerto de salida de la conexión con el USV
-        self.add_out_port(Port(Event, "o_" + usv1.name))
+        self.add_out_port(Port(Event, "o_" + usv_name))
         # Puerto de salida de la conexión con el sensor S
         self.o_sensor = Port(Event, "o_sensor")
         self.add_out_port(self.o_sensor)
@@ -632,11 +621,11 @@ class FogServer(Coupled):
             self.add_in_port(Port(Event, "i_" + thing_name))
             self.add_out_port(Port(Event, "o_" + thing_name))
 
-        gcs = GCS("GCS", usv1, thing_names, thing_event_ids, log_Time=log_Time, log_Data = log_Data, n_offset=n_offset)
+        gcs = GCS("GCS", usv_name, thing_names, thing_event_ids, log_Time=log_Time, log_Data = log_Data, n_offset=n_offset)
         self.add_component(gcs)
         self.add_coupling(self.i_cmd, gcs.i_cmd)
         # Conexión del puerto de entrad del USV con la entrada del GCS
-        self.add_coupling(self.get_in_port("i_" + usv1.name), gcs.i_usv)
+        self.add_coupling(self.get_in_port("i_" + usv_name), gcs.i_usv)
         # Conexión del puerto de salida del GCS con el puerto de salida del sensor Sun
         self.add_coupling(gcs.o_sensor_s,self.o_sensor)
         
@@ -654,11 +643,11 @@ class FogServer(Coupled):
         # Conexión de salida del puerto del GCS con el puerto de entrada del planificador
         self.add_coupling(gcs.o_usvp, USVp.i_in)
         # Conexión de salida del planificador con el puerto de salida del FogServer
-        self.add_coupling(USVp.o_out, self.get_out_port("o_" + usv1.name))
-        self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv1.name)) 
+        self.add_coupling(USVp.o_out, self.get_out_port("o_" + usv_name))
+        self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv_name)) 
 
         # Inference Service 
-        isv = Inference_Service("Inference_Service", usv1,thing_names, delay=0, log_Time=log_Time, log_Data = log_Data)
+        isv = Inference_Service("Inference_Service", usv_name, thing_names, delay=0, log_Time=log_Time, log_Data = log_Data)
         self.add_component(isv)
         self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)

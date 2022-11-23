@@ -588,10 +588,8 @@ def test_journal():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=False, log_Data=True)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()
     coord.exit()
-
-

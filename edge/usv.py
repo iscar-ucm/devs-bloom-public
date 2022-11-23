@@ -342,6 +342,11 @@ class USV_Simple(Atomic):
         
     def initialize(self):
         """Función de inicialización."""
+        # Constant initialization
+        self.k_2d_dis_usv        = 1/100   # USV 2D displacement
+        self.maxspeed            = 0.002   # USV max speed
+        self.electronic_consume  = -0.003  # USV electronic consume
+
         # Let's read a value from alls sensor files
         self.mydata={}
         self.datetimes={} 
@@ -357,49 +362,33 @@ class USV_Simple(Atomic):
 
         # Al tener archivos con las mismas dimensiones, se puede simplificar las siguientes definiciones,
         # (tener en cuenta en futuras versiones):
-        self.N = self.mydata[self.file_name].DateTime.count() # N = 721
-        self.ind = -1
-        # Valores del estado del barco:
-        # x(0) = power        x(1) = lon             x(2) = lat
-        # u(0) = charger      u(1) = eastspeed       u(2) = nordspeed        u(3) = time of actuator activation 
-        # p(0) = solarpower   p(1) = eastwaterspeed  p(2) = nordwaterspeed
-        # Estado incial del barco:
-        self.lyers     = range(1,55,1)
-        # VARIABLES A ENVIAR
-        self.ip        = 9
-        self.lonc      = self.simbody.lon
-        self.latc      = self.simbody.lat
-        self.lon       = self.simbody.lon
-        self.lat       = self.simbody.lat
-        self.nv        = self.simbody.nv
-        self.sigma     = self.simbody.sigma
-        self.BELV      = self.simbody.belv
-        self.WSEL      = self.simbody.wsel
-        self.sun       = self.simbody.sun
-        self.temp      = self.simbody.temp
-        self.RSSBC     = self.simbody.rssbc
-        self.CUV       = self.simbody.cuv
-        self.blayer    = self.simbody.blayer
-        self.time      = self.simbody.time
-        self.uw        = self.simbody.u           # Velocidad del agua este(m/s)
-        self.vw        = self.simbody.v           # Velocidad del agua norte(m/s)
-        self.ww        = self.simbody.w           # Velocidad del agua arriba(m/s)
-        self.seccion   = range(0,200,1)
-        self.map       = np.column_stack([self.lonc[self.seccion], self.latc[self.seccion]]) 
-        self.maptree   = KDTree(self.map)
-        self.x0        = [0,   self.lonc[self.ip],  self.latc[self.ip]]
-        self.x         = self.x0
-        self.xs        = [0.5, self.x0[1], self.x0[2]]
-        self.p         = [0,0,0]
-        self.u         = [0,0,0]
-        self.xdel      = [0,0,0]
-        self.SensorsOn = True
-        self.Bloom     = False
 
-        data = {'lonc':self.lonc, 'latc':self.latc, 'lon':self.lon, 'lat':self.lat, 'nv': self.nv, 'sigma': self.sigma,
-                'BELV': self.BELV,'WSEL': self.WSEL,'temp': self.temp,'RSSBC':self.RSSBC,'CUV':self.CUV,'blayer':self.blayer,
-                'time':self.time,'maptree':self.maptree,'x0':self.x0, 'x':self.x, 'u':self.u, 'xs':self.xs, 'uw':self.uw, 'vw':self.vw, 
-                'ww':self.ww, 'p':self.p,'xdel':self.xdel,'SensorsOn':self.SensorsOn, 'Bloom':self.Bloom}
+        # Load the data into variables
+        self.zonal_lon      = self.simbody.lonc    # Zonal longitude
+        self.zonal_lat      = self.simbody.latc    # Zonal latitude
+        self.nodal_lon      = self.simbody.lon     # Nonal longitude
+        self.nodal_lat      = self.simbody.lat     # Nonal latitude
+        self.bottom_elev    = self.simbody.belv    # Bottom elevation
+        self.w_surf_elev    = self.simbody.wsel    # Water surface elevation
+        self.nodes          = self.simbody.nv      # Nodes surrounding element
+        self.time           = self.simbody.time    # Time
+        self.sigma          = self.simbody.sigma   # Sigma at layer midpoints
+
+
+        # Variable initialization
+        self.seccion           = range(0,200,1)
+        self.map               = np.column_stack([self.zonal_lon[self.seccion], self.zonal_lat[self.seccion]]) 
+        self.maptree           = KDTree(self.map)
+        self.SensorsOn         = True
+        self.bloom             = False
+
+        self.N                 = self.mydata[self.file_name].DateTime.count() # N = 721
+        self.ind               = -1
+        self.lyers             = range(1,55,1)
+
+        data = {'zonal_lon':self.zonal_lon, 'zonal_lat':self.zonal_lat, 'nodal_lon':self.nodal_lon, 'nodal_lat':self.nodal_lat,
+                'bottom_elev': self.bottom_elev,'w_surf_elev': self.w_surf_elev, 'nodes': self.nodes, 'time':self.time, 'sigma': self.sigma, 
+                'maptree':self.maptree, 'SensorsOn':self.SensorsOn, 'bloom':self.bloom}
         self.msgout_init=Event(id='USV_Init',source=self.name, payload=data)
         super().passivate()
 
@@ -496,7 +485,7 @@ class USV_Simple(Atomic):
         if self.ind >= self.N:
             self.passivate()
         else:
-            #Refrencia del último fichero:
+            # Refrencia del último fichero:
             delta = self.datetimes[self.file_name][self.ind] - self.datetimes[self.file_name][self.ind-1]
             self.datetime = (self.datetimes[self.file_name][self.ind])
             self.hold_in(PHASE_ACTIVE, delta.seconds)
@@ -504,40 +493,41 @@ class USV_Simple(Atomic):
     def deltext(self,e: Any):
         self.continuef(e)
         """DEVS external transition function."""
-        if (self.i_in.empty() is False) and (self.ind < self.N):                   
-            self.msgin = self.i_in.get()
-            self.uxs        = self.msgin.payload['uxs']
-            self.pxs        = self.msgin.payload['pxs']
-            self.SensorsOn  = self.msgin.payload['SensorsOn']
-            self.Bloom      = self.msgin.payload['Bloom']
+        if (self.i_in.empty() is False) and (self.ind < self.N):                                 
+            self.msgin          = self.i_in.get()
+            self.usv_power      = self.msgin.payload['usv_power']
+            self.usv_lon        = self.msgin.payload['usv_lon']
+            self.usv_lat        = self.msgin.payload['usv_lat']
+            self.lon_usv_error  = self.msgin.payload['lon_usv_error']
+            self.lat_usv_error  = self.msgin.payload['lat_usv_error']
+            self.sun_radiation  = self.msgin.payload['sun_radiation']
+            self.water_x        = self.msgin.payload['water_x']
+            self.water_y        = self.msgin.payload['water_y']
+            self.SensorsOn      = self.msgin.payload['SensorsOn']
 
-            #DINÁMICA DEL BARCO:
-            maxspeed = 0.002
-            # Estado incial:
-            if self.xs[0] > 0:
-              if self.uxs[1] > maxspeed:  self.uxs[1] = maxspeed
-              if self.uxs[2] > maxspeed:  self.uxs[2] = maxspeed
-              if self.uxs[1] < -maxspeed: self.uxs[1] = -maxspeed
-              if self.uxs[2] < -maxspeed: self.uxs[2] = -maxspeed
-              self.xdel[0] = self.uxs[0] + self.pxs[0] - 30 * math.sqrt(self.uxs[1]**2 + self.uxs[2]**2) # Electrónica + Solar - Propulsion
-              k2d = 1 / 100
-              self.xdel[1] = self.uxs[1] + k2d * self.pxs[1]
-              self.xdel[2] = self.uxs[2] + k2d * self.pxs[2]
+            # USV dynamic
+            if self.usv_power > 0:
+                if self.lon_usv_error > self.maxspeed:
+                    self.lon_usv_error = self.maxspeed
+                if self.lat_usv_error > self.maxspeed:
+                    self.lat_usv_error = self.maxspeed
+                if self.lon_usv_error < -self.maxspeed:
+                    self.lon_usv_error = -self.maxspeed
+                if self.lat_usv_error < -self.maxspeed:
+                    self.lat_usv_error = -self.maxspeed
+                propulsion  = 30 * math.sqrt(self.lon_usv_error**2 + self.lat_usv_error**2)
+                self.usv_power  += self.electronic_consume + self.sun_radiation - propulsion
+                self.usv_lon    += self.lon_usv_error + self.k_2d_dis_usv * self.water_x
+                self.usv_lat    += self.lat_usv_error + self.k_2d_dis_usv * self.water_y
             else:
-              self.xs[0]   = 0
-              self.xdel[0] = self.pxs[0] # Solar
-              self.xdel[1] = 0
-              self.xdel[2] = 0
-
-            self.xs[0] += self.xdel[0]
-            self.xs[1] += self.xdel[1]
-            self.xs[2] += self.xdel[2]
-            if self.xs[0] > 1: # Control de la batería
-              self.xs[0] = 1
+                self.usv_power   = self.sun_radiation
+            # Battery control
+            if self.usv_power > 1: 
+                self.usv_power = 1
 
             # Implementación del comportamiento del barco 
             # POSIBLEMENTE, HAYA QUE DIVIDIR VALORES ENTRE 30 MINS
-            data = {'xs':self.xs,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+            data = {'usv_power':self.usv_power, 'usv_lon':self.usv_lon, 'usv_lat':self.usv_lat, 'SensorsOn':self.SensorsOn}
             self.msgout=Event(id='USV',source=self.name,timestamp=self.datetime,payload=data)
             super().activate(self.PHASE_SENDING)
 

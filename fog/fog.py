@@ -299,20 +299,11 @@ class Usv_Planner(Atomic):
         
     def initialize(self):
         """Función de inicialización."""
-        # El planificador conoce los parámetros iniciales del barco
-        self.msgout    = None
-        self.xdel      = [0,0,0]
-        self.k2d       = 1/100
-        self.X         = []
-        self.U         = []
-        self.P         = []
-        self.SensorsOn = False
-        self.mybloom   = False
-        self.maxspeed  = 0.002
-        # Valores del estado del barco:
-        #X[0]=power             X[1]=lon            X[2]=lat
-        #U(0)=charger           U(1)=eastspeed      U(2)=nordspeed          U(3)=time of actuator activation 
-        #P(0)=solarpower        P(1)=eastwaterspeed P(2)=nordwaterspeed
+        self.k_2d_dis_usv        = 1/100   # USV 2D displacement
+        self.maxspeed            = 0.002   # USV max speed
+        self.electronic_consume  = -0.003  # USV electronic consume
+        self.SensorsOn           = False   # Sensors boolean
+        self.msgout              = None    # Message out
         super().passivate()
 
     def exit(self):
@@ -379,25 +370,27 @@ class Inference_Service(Atomic):
 
     def initialize(self):
         # Wait for a resquet
-        self.tau = 100 # Tiempo
-        self.lyr = 54 # Capas de profundidad (54 = superficie)
-        self.ip  = 9 # índice de posición de la partícula de bloom
-        self.kdecline = 1/6 # Constante de decrecimiento
-        self.kgrow    = 1 # Constante de crecimiento
-        self.k2d      = 1/60 # Constante de desplazamiento
-        self.kbreath  = 0.05 # Constante de respiración
-        self.kphoto   = 5 # Constante de fotosíntesis
-        self.NOX        = list()
-        self.DOX        = list()
-        self.ALG        = list()
-        self.WTE        = list()
-        self.WFU        = list()
-        self.WFV        = list()
-        self.WFX        = list()
-        self.WFY        = list()
-        self.SUN        = list()
-        self.frame      = 0
-        self.msgout = None
+
+        self.tau             = 100       # Time
+        self.lyr             = 54        # Depth layers (54 = surface)
+        self.ip              = 9         # Bloom particle position index on map
+        self.k_breath        = 0.05      # Breath
+        self.k_photo         = 5         # Photosynthesis
+        self.k_decrease      = 1/6       # Decrease
+        self.k_growth        = 1         # Growth
+        self.k_2d_dis_bloom  = 1/60      # Bloom 2D displacement
+
+        self.nox             = list()    # Nitrate
+        self.dox             = list()    # Dissolved oxygen
+        self.algae           = list()    # Algae
+        self.water_temp      = list()    # Water temperature
+        self.water_x         = list()    # Water speed x axis
+        self.water_y         = list()    # Water speed y axis
+        self.wind_x          = list()    # Wind speed x axis
+        self.wind_y          = list()    # Wind speed y axis  
+        self.sun             = list()    # Sun radiation
+        self.frame           = 0         # Frame
+        self.msgout          = None      # Message out
         self.passivate()         
       
     def exit(self):
@@ -408,151 +401,174 @@ class Inference_Service(Atomic):
         """Función DEVS de transición externa."""
         self.continuef(e)
         if (self.i_in.empty() is False):
-            self.msgin = self.i_in.get()
-            if self.msgin.id == 'USV_Init':
-                self.ip        = 9
-                self.lonc      = self.msgin.payload['lonc']
-                self.latc      = self.msgin.payload['latc']
-                self.lon       = self.msgin.payload['lon']
-                self.lat       = self.msgin.payload['lat']
-                self.nv        = self.msgin.payload['nv']  
-                self.BELV      = self.msgin.payload['BELV']
-                self.WSEL      = self.msgin.payload['WSEL']
-                self.temp      = self.msgin.payload['temp']
-                self.RSSBC     = self.msgin.payload['RSSBC']
-                self.CUV       = self.msgin.payload['CUV']
-                self.blayer    = self.msgin.payload['blayer']
-                self.time      = self.msgin.payload['time']
-                self.maptree   = self.msgin.payload['maptree']
-                self.x0        = self.msgin.payload['x0']
-                self.x         = self.msgin.payload['x']
-                self.u         = self.msgin.payload['u']
-                self.xs        = self.msgin.payload['xs']
-                self.uw        = self.msgin.payload['uw']
-                self.vw        = self.msgin.payload['vw']
-                self.ww        = self.msgin.payload['ww']
-                self.p         = self.msgin.payload['p']
-                self.xdel      = self.msgin.payload['xdel']
-                self.SensorsOn = self.msgin.payload['SensorsOn']
-                self.Bloom     = self.msgin.payload['Bloom']
-                self.sigma     = self.msgin.payload['sigma']
-                self.db        = self.msgin.payload['db']
-                #self.lonf      = self.lon[self.nv-1]
-                #self.latf      = self.lat[self.nv-1]
-                self.z         = self.BELV[0, :] + np.transpose(self.sigma) * (self.WSEL[self.tau - 1, :] - self.BELV[0, :]) # AQUI TAMBIEEÉN
-                self.depth     = self.WSEL[self.tau - 1, :] - self.z
-                self.sigma[self.sigma == 0] = float("NAN")
-                self.datetime    = self.msgin.timestamp
+            # Load the payload data into variables
+            self.msgin          = self.i_in.get()                         # Message recieved
+            self.db             = self.msgin.payload['db']                # Sensors data
+            self.datetime       = self.msgin.timestamp                    # Date
+            self.SensorsOn      = self.msgin.payload['SensorsOn']         # Sensors boolean
 
+            # The first message contains all the initial information
+            if self.msgin.id == 'USV_Init':
+                # Load the initial payload data into variables
+                self.zonal_lon      = self.msgin.payload['zonal_lon']      # Zonal longitude
+                self.zonal_lat      = self.msgin.payload['zonal_lat']      # Zonal latitude
+                self.nodal_lon      = self.msgin.payload['nodal_lon']      # Nonal longitude
+                self.nodal_lat      = self.msgin.payload['nodal_lat']      # Nonal latitude
+                self.bottom_elev    = self.msgin.payload['bottom_elev']    # Bottom elevation
+                self.w_surf_elev    = self.msgin.payload['w_surf_elev']    # Water surface elevation
+                self.nodes          = self.msgin.payload['nodes']          # Nodes surrounding element
+                self.time           = self.msgin.payload['time']           # Time
+                self.sigma          = self.msgin.payload['sigma']          # Sigma at layer midpoints
+                self.bloom          = self.msgin.payload['bloom']          # Bloom boolean
+                self.maptree        = self.msgin.payload['maptree']        # Map
+
+                # Variable initialization
+                self.depth             = self.w_surf_elev[self.tau-1, :] - self.bottom_elev[0, :] + np.transpose(self.sigma) * (self.w_surf_elev[self.tau-1, :] - self.bottom_elev[0, :])
+                self.ini_bloom_size    = 0
+                self.ini_bloom_lon     = self.zonal_lon[self.ip]
+                self.ini_bloom_lat     = self.zonal_lat[self.ip]
+                self.bloom_size        = self.ini_bloom_size
+                self.bloom_lon         = self.ini_bloom_lon
+                self.bloom_lat         = self.ini_bloom_lat
+                self.usv_power         = 0.5
+                self.usv_lon           = self.ini_bloom_lon
+                self.usv_lat           = self.ini_bloom_lat  
+
+                # Load the sensors data into variables
                 for thing_name in self.thing_names:
                     if self.db[thing_name].id == 'NOX':
-                        self.NOX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "DOX":
-                        self.DOX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "ALG":
-                        self.ALG = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WTE":
-                        self.WTE = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFU":
-                        self.WFU = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFV":
-                        self.WFV = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFX":
-                        self.WFX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFY":
-                        self.WFY = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "SUN":
-                        self.SUN = self.db[thing_name].payload['Value']
-                    
-                # TE DEJO UN EJEMPLO DE SENSOR : print(self.db["SimSenN"]) =
-                #        id       source      timestamp             Time     Lat      Lon         Depth  NOX  Bt  Bij  Bl
-                #    0  NOX      SimSenN      2008-08-23 00:00:06     0      47.505   -122.215    0.0    0.4   0  9    54
-
+                        self.nox         = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'DOX':
+                        self.dox         = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'ALG':
+                        self.algae       = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WTE':
+                        self.water_temp  = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFU':
+                        self.water_x     = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFV':
+                        self.water_y     = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFX':
+                        self.wind_x      = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFY':
+                        self.wind_y      = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'SUN':
+                        self.sun         = self.db[thing_name].payload['Value']
+            
+                # When the day begins it restarts
                 if self.datetime.hour == 0 and self.datetime.minute == 0:
-                    self.x = [0, self.lonc[self.ip], self.latc[self.ip]]
-                    self.Bloom = False
-                # Calculamos las nuevas posiciones
-                _, self.ip = self.maptree.query([self.xs[1], self.xs[2]]) # ip del barco
-                # Calculamos la respiración y la fotosíntesis
+                    self.bloom_size = self.ini_bloom_size
+                    self.bloom_lon  = self.ini_bloom_lon
+                    self.bloom_lat  = self.ini_bloom_lat
+                    self.bloom      = False
 
-                breath = self.NOX * self.DOX
-                photosynthesis = self.NOX * self.SUN
-                # ux(0) = food, ux(1) = x axis water speed, ux(2) = y axis water speed
-                ux = [self.kbreath * breath + self.kphoto * photosynthesis, self.uw[self.lyr][self.ip], self.vw[self.lyr][self.ip]]
-                # Lógica del bloom
-                self.Bloom = self.bloomlog(self.DOX , self.Bloom)  
-                # Llamada a dinámica del bloom
-                self.x = self.bloomdyn(self.x, ux, self.Bloom, self.x0)
+                # Recalculate USV ip
+                _, self.ip = self.maptree.query([self.usv_lon, self.usv_lat])
 
-                # Error of Ship
-                self.eu = (self.x[1] - self.xs[1])
-                self.ev = (self.x[2] - self.xs[2])
-                    
-                # uxs(0) = electronic consume, uxs(1) = longitude USV error, uxs(2) = latitude USV error
-                self.uxs = [-0.003, self.eu, self.ev]
-                # pxs(0) = sun radiation, pxs(1) = x axis water speed, pxs(2) = y axis water speed
-                self.pxs = [0.04 * self.SUN, self.uw[self.frame][self.lyr][self.ip], self.vw[self.frame][self.lyr][self.ip]]
+                # Variable calculations
+                self.breath          = self.nox * self.dox
+                self.photosynthesis  = self.nox * self.sun
+                self.food            = self.k_breath * self.breath + self.k_photo * self.photosynthesis
+                self.sun_radiation   = 0.04 * self.sun
+
+                # Bloom logic
+                if self.dox > 20:
+                    self.bloom = True
+                if self.dox < 15:
+                    self.bloom = False
+
+                # Bloom dynamic
+                self.bloom_size = self.bloom_size + self.k_growth * self.food - self.k_decrease * self.bloom_size
+                if self.bloom:
+                    self.bloom_lon = self.bloom_lon + self.k_2d_dis_bloom * self.water_x
+                    self.bloom_lat = self.bloom_lat + self.k_2d_dis_bloom * self.water_y
+                else:
+                    self.bloom_lon = self.ini_bloom_lon
+                    self.bloom_lat = self.ini_bloom_lat
+                # Size control
+                if self.bloom_size > 10:
+                    self.bloom_size = 10
+
+                # USV position error
+                self.lon_usv_error = self.bloom_lon - self.usv_lon
+                self.lat_usv_error = self.bloom_lat - self.usv_lat
 
                 # Se construye la trama de datos a enviar:
-                self.datetime+=dt.timedelta(seconds=self.delay)
-                data = {'uxs':self.uxs,'pxs':self.pxs,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+                self.datetime+=dt.timedelta(seconds=self.delay)    
+                data = {'usv_power':self.usv_power,'usv_lon':self.usv_lon,'usv_lat':self.usv_lat,'lon_usv_error':self.lon_usv_error,'lat_usv_error':self.lat_usv_error,'sun_radiation':self.sun_radiation,'water_x':self.water_x,'water_y':self.water_y,'SensorsOn':self.SensorsOn}
                 self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
                 self.frame+=1
                 super().activate(self.PHASE_SENDING)
 
-            if self.msgin.id == 'USV':    
-                self.xs        = self.msgin.payload['xs']
-                self.db        = self.msgin.payload['db']
-                self.datetime  = self.msgin.timestamp
+            # The other messages only contain the USV and sensors info
+            if self.msgin.id == 'USV':
+                # Load the payload data into variables
+                self.usv_power  = self.msgin.payload['usv_power']   # USV power
+                self.usv_lon    = self.msgin.payload['usv_lon']     # USV longitude
+                self.usv_lat    = self.msgin.payload['usv_lat']     # USV latitude
 
+                # Load the sensors data into variables
                 for thing_name in self.thing_names:
                     if self.db[thing_name].id == 'NOX':
-                        self.NOX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "DOX":
-                        self.DOX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "ALG":
-                        self.ALG = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WTE":
-                        self.WTE = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFU":
-                        self.WFU = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFV":
-                        self.WFV = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFX":
-                        self.WFX = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "WFY":
-                        self.WFY = self.db[thing_name].payload['Value']
-                    if self.db[thing_name].id == "SUN":
-                        self.SUN = self.db[thing_name].payload['Value']
+                        self.nox         = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'DOX':
+                        self.dox         = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'ALG':
+                        self.algae       = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WTE':
+                        self.water_temp  = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFU':
+                        self.water_x     = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFV':
+                        self.water_y     = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFX':
+                        self.wind_x      = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'WFY':
+                        self.wind_y      = self.db[thing_name].payload['Value']
+                    if self.db[thing_name].id == 'SUN':
+                        self.sun         = self.db[thing_name].payload['Value']
 
+                # When the day begins it restarts
                 if self.datetime.hour == 0 and self.datetime.minute == 0:
-                    self.x = [0, self.lonc[self.ip], self.latc[self.ip]]
-                    self.Bloom = False
-                # Calculamos las nuevas posiciones
-                _, self.ip = self.maptree.query([self.xs[1], self.xs[2]]) # ip del barco
-                # Calculamos la respiración y la fotosíntesis
+                    self.bloom_size = self.ini_bloom_size
+                    self.bloom_lon  = self.ini_bloom_lon
+                    self.bloom_lat  = self.ini_bloom_lat
+                    self.bloom      = False
 
-                breath = self.NOX * self.DOX
-                photosynthesis = self.NOX * self.SUN
-                # ux(0) = food, ux(1) = x axis water speed, ux(2) = y axis water speed
-                ux = [self.kbreath * breath + self.kphoto * photosynthesis, self.uw[self.frame][self.lyr][self.ip], self.vw[self.frame][self.lyr][self.ip]]
-                # Lógica del bloom
-                self.Bloom = self.bloomlog(self.DOX , self.Bloom)  
-                # Llamada a dinámica del bloom
-                self.x = self.bloomdyn(self.x, ux, self.Bloom, self.x0)
+                # Recalculate USV ip
+                _, self.ip = self.maptree.query([self.usv_lon, self.usv_lat])
 
-                # Error of Ship
-                self.eu = (self.x[1] - self.xs[1])
-                self.ev = (self.x[2] - self.xs[2])
-                    
-                # uxs(0) = electronic consume, uxs(1) = longitude USV error, uxs(2) = latitude USV error
-                self.uxs = [-0.003, self.eu, self.ev]
-                # pxs(0) = sun radiation, pxs(1) = x axis water speed, pxs(2) = y axis water speed
-                self.pxs = [0.04 * self.SUN, self.uw[self.frame][self.lyr][self.ip], self.vw[self.frame][self.lyr][self.ip]]
+                # Variable calculations
+                self.breath          = self.nox * self.dox
+                self.photosynthesis  = self.nox * self.sun
+                self.food            = self.k_breath * self.breath + self.k_photo * self.photosynthesis
+                self.sun_radiation   = 0.04 * self.sun
+
+                # Bloom logic
+                if self.dox > 20:
+                    self.bloom = True
+                if self.dox < 15:
+                    self.bloom = False
+
+                # Bloom dynamic
+                self.bloom_size = self.bloom_size + self.k_growth * self.food - self.k_decrease * self.bloom_size
+                if self.bloom:
+                    self.bloom_lon = self.bloom_lon + self.k_2d_dis_bloom * self.water_x
+                    self.bloom_lat = self.bloom_lat + self.k_2d_dis_bloom * self.water_y
+                else:
+                    self.bloom_lon = self.ini_bloom_lon
+                    self.bloom_lat = self.ini_bloom_lat
+                # Size control
+                if self.bloom_size > 10:
+                    self.bloom_size = 10
+
+                # USV position error
+                self.lon_usv_error = self.bloom_lon - self.usv_lon
+                self.lat_usv_error = self.bloom_lat - self.usv_lat
 
                 # Se construye la trama de datos a enviar:
-                self.datetime+=dt.timedelta(seconds=self.delay)
-                data = {'uxs':self.uxs,'pxs':self.pxs,'SensorsOn':self.SensorsOn,'Bloom':self.Bloom}
+                self.datetime+=dt.timedelta(seconds=self.delay)    
+                data = {'usv_power':self.usv_power,'usv_lon':self.usv_lon,'usv_lat':self.usv_lat,'lon_usv_error':self.lon_usv_error,'lat_usv_error':self.lat_usv_error,'sun_radiation':self.sun_radiation,'water_x':self.water_x,'water_y':self.water_y,'SensorsOn':self.SensorsOn}
                 self.msgout = Event(id=self.msgin.id,source=self.name,timestamp=self.datetime,payload=data)
                 self.frame+=1
                 super().activate(self.PHASE_SENDING)
@@ -568,35 +584,6 @@ class Inference_Service(Atomic):
             
     def deltint(self):
         pass
-
-    def bloomdyn(self,x, u, bloom, x0):
-    # This function implements a simplyfied dynamic if the bloom
-    # x(0) = size, x(1) = lon, x(2) = lat, x(3) = time of last update
-    # u(0) = Nfood, u(1) = x axis water speed, u(2) = y axis water speed
-        if bloom:
-            x[0] = x[0] + self.kgrow * u[0] - self.kdecline * x[0]
-            x[1] = x[1] + self.k2d   * u[1]
-            x[2] = x[2] + self.k2d   * u[2]
-        else:
-            x[0] = x[0] + self.kgrow * u[0] - self.kdecline * x[0]
-            x[1] = x0[1]
-            x[2] = x0[2]
-        if x[0] > 10: # Control del tamaño
-            x[0] = 10
-        return x
-
-    #Lógica del bloom
-    def bloomlog(self,dox, bloom):
-        # Is It a Bloom? At actual position
-        # Rich in oxigen => It is a bloom
-        # Poor in oxigen => It is not a bloom
-        # Other case bypass bloom
-        b = bloom
-        if dox > 20:
-            b = True
-        if dox < 15:
-            b = False
-        return b
 
         
 class FogServer(Coupled):

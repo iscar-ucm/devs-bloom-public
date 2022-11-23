@@ -3,7 +3,7 @@
 <br />
 <div align="center">
 <h3 align="center">Devs-Bloom</h3>
-    <img src="doc/DEVS_BLOOM-DB-SensoresInternos.svg" alt="Logo" width="500" height="300">
+    <img src="doc/DEVS_BLOOM-DB-SensoresInternos.svg" alt="Logo" width="800" height="500">
   </a>
 
 

@@ -2,12 +2,9 @@
 
 <br />
 <div align="center">
-<h3 align="center">Devs-Bloom</h3>
     <img src="doc/DEVS_BLOOM-DB-SensoresInternos.svg" alt="Logo" width="800" height="500">
   </a>
-
-
-
+<h3 align="center">Devs-Bloom</h3>
   <p align="center">
     Repositorio para la especificación del modelo completo del proyecto IA-GES-BLOOM-CM
 </div>

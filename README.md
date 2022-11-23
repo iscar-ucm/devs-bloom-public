@@ -1,10 +1,17 @@
 <a name="readme-top"></a>
 
+<br />
+<div align="center">
 <h3 align="center">Devs-Bloom</h3>
+    <img src="doc/DEVS_BLOOM-DB-SensoresInternos.svg" alt="Logo" width="500" height="300">
+  </a>
+
+
 
   <p align="center">
     Repositorio para la especificación del modelo completo del proyecto IA-GES-BLOOM-CM
 </div>
+
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -30,8 +37,19 @@
 
 <!-- ABOUT THE PROJECT -->
 ## Sobre el proyecto
-
-Here's a blank template to get started: To avoid retyping too much info. Do a search and replace with your text editor for the following: `ej_repo_name`,`email`
+Las floraciones de cianobacterias (CBs), que ocurren tanto en aguas continentales como marítimas, plantean
+amenazas a los ambientes naturales al producir toxinas que afectan por igual a la salud de humanos y animales. En el pasado, las CBs se evaluaban principalmente mediante la recopilación manual
+y posterior análisis de muestras de agua, y ocasionalmente de manera automática por
+instrumentos que adquieren información de algunas ubicaciones fijas. Estos procedimientos
+no proporcionan datos con la resolución espacial y temporal deseable para
+anticipar la formación de CBs. Por lo tanto, se necesitan nuevas herramientas y tecnología para
+detectar, caracterizar y responder eficientemente a los CBs que amenazan la calidad del
+agua. Esto es especialmente importante hoy en día, cuando el suministro de agua del mundo está
+bajo una gran presión por el cambio climático, la sobreexplotación y la contaminación. Este
+proyecto presenta DEVS-BLOOM, un marco novedoso para el monitoreo en tiempo real
+y gestión de CBs. Su propósito es apoyar riesgos de alto rendimiento.
+detección con Ingeniería de Sistemas Basada en Modelos (MBSE) e Infraestructura de Internet de
+las cosas (IoT) para entornos dinámicos.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -39,22 +57,22 @@ Here's a blank template to get started: To avoid retyping too much info. Do a se
 <!-- GETTING STARTED -->
 ## Pasos Iniciales
 
-A continuación, se indicarán los pasos a seguir en la instalación del software necesario para el correcto funcionamiento del simulador.
+A continuación, se indicarán los pasos a seguir para la instalación del software necesario para el correcto funcionamiento del simulador.
 
 ### Requisitos mínimos
-Los programas empleados a lo largo de toda la instalación de los paquetes de software son los siguientes:
+Los programas empleados a lo largo de toda la instalación de los paquetes de software se muestran a continuación
 
 * [Visual Studio Code](https://code.visualstudio.com/Download)
 * [Python](https://www.python.org/downloads/)  (Versión recomendada 3.10)
 * [Git](https://git-scm.com/downloads): Necesario para trabajar en colaboración con el repositorio del proyecto
 * [Extensiones](https://marketplace.visualstudio.com/VSCode) para Visual Studio 
     ```sh
-    Python + Pylance Jupyter, Jupyter Cell Tag + Jupyter Keymap + Jupyter Slide Show + Jupyther Notebook Renderers
+    Python + Pylance / Jupyter + Jupyter Cell Tag + Jupyter Keymap + Jupyter Slide Show + Jupyther Notebook Renderers
     ```
 ### Instalación
 
-1. Después de instalar los programas necesarios, se debe crear una carpeta local en la ubicación donde se desee alojar el proyecto.
-2. Clonar el repositorio en la carpeta
+1. Crear una carpeta local en la ubicación donde se desee alojar el proyecto una vez se tengan instalados los programas necesarios.
+2. Clonar el repositorio dentro la carpeta seleccionada.
    ```sh
    git clone https://github.com/github_username/repo_name.git
    ```
@@ -81,6 +99,7 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
     ```
 * Se recomienda trabajar sobre la carpeta que se haya seleccionado con todos los ficheros en local.
 
+
 <!-- USAGE EXAMPLES -->
 ## Uso
 _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
@@ -104,7 +123,7 @@ Para ver más información, acceder a [Ramas](https://github.com/iscar-ucm/devs-
 
 
 <!-- LICENSE -->
-## License
+## Licencia
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -112,7 +131,7 @@ Para ver más información, acceder a [Ramas](https://github.com/iscar-ucm/devs-
 
 
 <!-- CONTACT -->
-## Contact
+## Contacto
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

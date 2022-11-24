@@ -57,11 +57,11 @@ las cosas (IoT) para entornos dinámicos.
 A continuación, se indicarán los pasos a seguir para la instalación del software necesario para el correcto funcionamiento del simulador.
 
 ### Requisitos mínimos
-Los programas empleados a lo largo de toda la instalación de los paquetes de software se muestran a continuación
+Los programas empleados a lo largo de toda la instalación de los paquetes de software se muestran a continuación:
 
 * [Visual Studio Code](https://code.visualstudio.com/Download)
 * [Python](https://www.python.org/downloads/)  (Versión recomendada 3.10)
-* [Git](https://git-scm.com/downloads): Necesario para trabajar en colaboración con el repositorio del proyecto
+* [Git](https://git-scm.com/downloads) (Necesario para trabajar en colaboración con el repositorio del proyecto)
 * [Extensiones](https://marketplace.visualstudio.com/VSCode) para Visual Studio 
     ```sh
     Python + Pylance / Jupyter + Jupyter Cell Tag + Jupyter Keymap + Jupyter Slide Show + Jupyther Notebook Renderers
@@ -90,7 +90,7 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Recomendaciones
-* Extenciones útiles para la visualización de algunos ficheros en VSC:  
+* Extensiones útiles para la visualización de algunos ficheros en VSC:  
     ```sh
     Rainbow CSV, Excel Viewer, Docker, Draw.io Integration...
     ```

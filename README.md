@@ -73,7 +73,8 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
    ```sh
    git clone https://github.com/github_username/repo_name.git
    ```
-3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta dataedge/.
+3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://drive.google.com/file/d/19ebVEwIzA0eD7wIkQ5ijRXtAgXljbC0h/view?usp=share_link) de Google Drive.
+
 4. Instalar los paquetes de software que serán empleados (se recomienda usar la herramienta pip)
    ```sh
    pip install xdevs
@@ -111,7 +112,7 @@ _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
     - [ ] Rama 1
     - [ ] Rama 2
 - [x] Versión 2.0 - Lazo con Inferencia
-    - [ ] Rama 1
+    - [ ] Clase Servicios en carpeta externa
 
 Para ver más información, acceder a [Ramas](https://github.com/iscar-ucm/devs-bloom/branches)
 

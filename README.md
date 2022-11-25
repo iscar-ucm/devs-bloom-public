@@ -110,7 +110,6 @@ _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
 
 - [x] Versión 1.0 
     - [ ] Rama 1
-    - [ ] Rama 2
 - [x] Versión 2.0.0 - Lazo con Inferencia
     - [x] Rama devel
       - [ ] Clase Servicios en carpeta externa  

@@ -71,7 +71,7 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
 1. Crear una carpeta local en la ubicación donde se desee alojar el proyecto una vez se tengan instalados los programas necesarios.
 2. Clonar el repositorio dentro la carpeta seleccionada.
    ```sh
-   git clone https://github.com/github_username/repo_name.git
+   git clone https://github.com/iscar-ucm/devs-bloom.git
    ```
 3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://drive.google.com/file/d/19ebVEwIzA0eD7wIkQ5ijRXtAgXljbC0h/view?usp=share_link) de Google Drive.
 
@@ -111,8 +111,10 @@ _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
 - [x] Versión 1.0 
     - [ ] Rama 1
     - [ ] Rama 2
-- [x] Versión 2.0 - Lazo con Inferencia
-    - [ ] Clase Servicios en carpeta externa
+- [x] Versión 2.0.0 - Lazo con Inferencia
+    - [x] Rama devel
+      - [ ] Clase Servicios en carpeta externa  
+      - [ ] Incorporación de actuador externo
 
 Para ver más información, acceder a [Ramas](https://github.com/iscar-ucm/devs-bloom/branches)
 

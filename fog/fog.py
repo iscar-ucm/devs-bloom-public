@@ -26,7 +26,8 @@ from scipy.spatial import KDTree
 from time import strftime, localtime
 from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Coupled, Port
-from edge.sensor import SimSensor5, SensorEventId, SensorInfo
+from edge.sensor import SensorEventId, SensorInfo
+#from cloud.cloud import Cloud_Sensor
 from util.view import Scope
 from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
 
@@ -132,6 +133,7 @@ class GCS(Atomic):
 
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
+            # Cloud_Sensor()
             if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
             if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
             self.passivate()

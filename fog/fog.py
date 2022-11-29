@@ -27,7 +27,7 @@ from time import strftime, localtime
 from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Coupled, Port
 from edge.sensor import SensorEventId, SensorInfo
-#from cloud.cloud import Cloud_Sensor
+from cloud.cloud import Cloud_Sensor
 from util.view import Scope
 from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
 
@@ -45,11 +45,11 @@ class GCS(Atomic):
     def __init__(self, name: str, usv_name: str, thing_names: list, thing_event_ids: list, log_Time=False, log_Data=False,n_offset: int = 100):
         """Función de inicialización de atributos."""
         super().__init__(name)
-        self.thing_names = thing_names
+        self.thing_names     = thing_names
         self.thing_event_ids = {}
 
-        self.log_Time=log_Time
-        self.log_Data=log_Data
+        self.log_Time = log_Time
+        self.log_Data = log_Data
         self.n_offset = n_offset
         
         # Puertos de entrada de comandos
@@ -114,7 +114,10 @@ class GCS(Atomic):
             self.db_cache[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
             self.db_path[thing_name]  = "datafog/" + self.parent.name + "." + thing_name + "_" + time_mark
             # offset
-            self.counter[thing_name] = 0
+            self.counter[thing_name] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids[thing_name]))
+
+        self.db["ExtSenS"] = pd.DataFrame(columns=DataEventColumns.get_all_columns(self.thing_event_ids["SimSenS"]))
+        self.db_path["ExtSenS"]  = "datafog/" + self.parent.name + "." + "ExtSenS" + "_" + time_mark
         self.passivate()
 
     def exit(self):
@@ -122,7 +125,8 @@ class GCS(Atomic):
         # Aquí tenemos que guardar la base de datos.
         for thing_name in self.thing_names:
             self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
-            # Arregar salida
+
+        self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
         pass
 
     def lambdaf(self):
@@ -133,7 +137,11 @@ class GCS(Atomic):
 
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
-            # Cloud_Sensor()
+            cloud_body = Cloud_Sensor(host='http://192.168.137.167')
+            self.data_out_get  = cloud_body.getvar(var="voltage")
+            self.pos = round( -1.25*(self.msgout_isv.timestamp.hour-12)**2+180)
+            self.data_out_post = cloud_body.postvar(type="angle",value=self.pos,unit="degrees")
+
             if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
             if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
             self.passivate()
@@ -184,7 +192,7 @@ class GCS(Atomic):
                         self.activate(self.PHASE_SUN)
                         
                 # Cuando se tiene la información de todos los sensores:
-                if len(self.msg) == len(self.thing_names):    
+                if len(self.msg) == len(self.thing_names):
                     for thing_name in self.thing_names:
                         msg_list = list()
                         msg_list.append(self.msg[thing_name].id)
@@ -195,8 +203,8 @@ class GCS(Atomic):
                         self.db[thing_name].loc[len(self.db[thing_name])] = msg_list
                         self.counter[thing_name] += 1
                         # Envío de los datos hacia la capa CLOUD cada self.n_offset 
-                        if self.counter[thing_name] == self.n_offset:
-                            super().activate(self.PHASE_CLOUD)
+                        #if self.counter[thing_name] == self.n_offset:
+                        #    super().activate(self.PHASE_CLOUD)
                     self.data = self.msg
                     # Se activa la salida del módulo GCS, se actualizan los mensajes de salida(bypass temporal) y se eliminan todos los mensajes de entrada:
                     self.msgin_usv.payload.update({'db':self.data})

@@ -109,11 +109,12 @@ _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
 ## Roadmap
 
 - [x] Versión 1.0 
-    - [ ] Rama 1
 - [x] Versión 2.0.0 - Lazo con Inferencia
-    - [x] Rama devel
-      - [ ] Clase Servicios en carpeta externa  
-      - [ ] Incorporación de actuador externo
+  - [x] Rama devel
+      - [x] main_segundo_v5 update
+      - [x] Incorporación de sensor externo (Capa Cloud)
+      - [ ] Clase Servicios en carpeta externa
+
 
 Para ver más información, acceder a [Ramas](https://github.com/iscar-ucm/devs-bloom/branches)
 

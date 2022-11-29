@@ -432,6 +432,7 @@ class ModelJournal(Coupled):
         # FOG SEVER 1: Masa de agua 1
         '''#SE PRESCINDE DEL FILEASKVAR (Incorporado en el USV) 
         '''
+        # Sensores Internos
         sensor_info_n = SensorInfo(id=SensorEventId.NOX, description="Nitrogen sensor (mg/L)", delay=6, max=0.5, min=0.0, precision=0.1, noisebias=0.01, noisesigma=0.001)
         sensor_info_o = SensorInfo(id=SensorEventId.DOX, description="Oxigen sensor (mg/L)", delay=5, max=30.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
         sensor_info_a = SensorInfo(id=SensorEventId.ALG, description="Algae detector (mg/L)", delay=7, max=15.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
@@ -588,7 +589,7 @@ def test_journal():
     """Comprobamos el modelo para el journal."""
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=False, log_Data=True)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

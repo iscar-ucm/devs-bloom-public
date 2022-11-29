@@ -102,8 +102,8 @@ class ModelSensor5(Coupled):
 def test_sensor5():
     """Comprobamos el modelo para el Sensor5 y BodySim5"""
     print('Initialization')
-    bodyfile: str = '.\dataedge\Washington-1m-2008-09_UGRID.nc'
-    simfile: str='.\data\simulation-sensor5.txt'
+    bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
+    simfile: str='./data/simulation-sensor5.txt'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile,log=False)
     coupled = ModelSensor5("ModelSensor5", simfile, simbody, log=False)
     coord = Coordinator(coupled)

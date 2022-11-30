@@ -10,7 +10,6 @@ remanentes.
 """
 import math
 from queue import Empty
-from tkinter import EventType
 import pandas as pd
 import numpy as np
 from typing import Any

@@ -7,19 +7,19 @@ from edge.sensor import SimSensor5, SensorEventId, SensorInfo
 from edge.usv import USV_Simple
 from fog.fog import FogServer
 from xdevs.sim import Coordinator
+from time import strftime, localtime
+import os
 
 class ModelBeatrizTFM(Coupled):
     """Clase que implementa un modelo de la pila IoT como entidad virtual."""
     
-    def __init__(self, name: str, commands_path: str, simbody: SimBody5, log_Time=False, log_Data=False):
+    def __init__(self, name: str, commands_path: str, simbody: SimBody5, base_folder: str, log_Time=False, log_Data=False):
         """Función de inicialización."""
         super().__init__(name)
         # Simulation file
         generator = Generator("Commander", commands_path)
 
         # FOG SEVER 1: Masa de agua 1
-        '''#SE PRESCINDE DEL FILEASKVAR (Incorporado en el USV) 
-        '''
         # Sensores Internos
         sensor_info_n = SensorInfo(id=SensorEventId.NOX, description="Nitrogen sensor (mg/L)", delay=6, max=0.5, min=0.0, precision=0.1, noisebias=0.01, noisesigma=0.001)
         sensor_info_o = SensorInfo(id=SensorEventId.DOX, description="Oxigen sensor (mg/L)", delay=5, max=30.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
@@ -50,7 +50,7 @@ class ModelBeatrizTFM(Coupled):
         usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log_Time=log_Time, log_Data=log_Data)
         
         # TODO: Complete the FogServer definition
-        fog = FogServer("FogServer", usv1.name, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
+        fog = FogServer("FogServer", usv1.name, thing_names, thing_event_ids, sensor_s, base_folder=base_folder, log_Time=log_Time, log_Data=log_Data)
         # Capa Cloud:
         # cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name])
         # Components:
@@ -101,9 +101,12 @@ class ModelBeatrizTFM(Coupled):
 
 
 if __name__ == "__main__":
-    bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
-    simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelBeatrizTFM("ModelBeatrizTFM", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
+    # Create the output directory:
+    model_name: str = "ModelBeatrizTFM"
+    base_folder: str = "output" + "/" + model_name + "_" + strftime("%Y%m%d%H%M%S", localtime())
+    os.makedirs(base_folder, exist_ok=True)
+    simbody: SimBody5 = SimBody5('SimWater', './dataedge/Washington-1m-2008-09_UGRID.nc')
+    coupled = ModelBeatrizTFM(model_name, 'data/simulation-journal.txt', simbody, base_folder=base_folder, log_Time=True, log_Data=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

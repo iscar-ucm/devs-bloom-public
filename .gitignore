@@ -1,3 +1,8 @@
+# Our personal stuff:
+dataedge/Washington-1m-2008-09_UGRID.nc
+output/**
+!output/README.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -153,4 +158,3 @@ setup.cfg
 
 # Mac OS
 .DS_Store
-dataedge/Washington-1m-2008-09_UGRID.nc

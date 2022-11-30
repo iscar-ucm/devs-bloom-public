@@ -27,7 +27,6 @@ from time import strftime, localtime
 from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Coupled, Port
 from edge.sensor import SensorEventId, SensorInfo
-from cloud.cloud import Cloud_Sensor
 from util.view import Scope
 from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
 
@@ -126,7 +125,7 @@ class GCS(Atomic):
         for thing_name in self.thing_names:
             self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
 
-        self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
+        #self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
         pass
 
     def lambdaf(self):
@@ -137,11 +136,6 @@ class GCS(Atomic):
 
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
-            cloud_body = Cloud_Sensor(host='http://192.168.137.167')
-            self.data_out_get  = cloud_body.getvar(var="voltage")
-            self.pos = round( -1.25*(self.msgout_isv.timestamp.hour-12)**2+180)
-            self.data_out_post = cloud_body.postvar(type="angle",value=self.pos,unit="degrees")
-
             if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
             if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
             self.passivate()

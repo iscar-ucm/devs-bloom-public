@@ -123,7 +123,6 @@ class GCS(Atomic):
         # Aquí tenemos que guardar la base de datos.
         for thing_name in self.thing_names:
             self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
-
         #self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
         pass
 
@@ -137,18 +136,25 @@ class GCS(Atomic):
             self.o_isv.add(self.msgout_isv)
             if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
             if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
+        
+            ### EJEMPLO DE ENVÍO A LA CAPA CLOUD
+            for thing_name in self.thing_names:
+                self.get_out_port("o_" + thing_name).add(self.data[thing_name])
+            if self.log_Time is True: logger.info("GCS->CLOUD: DataTime = %s" %(self.msgout_isv.timestamp))
+            if self.log_Data is True: logger.info("GCS->CLOUD: Data = Sensors")
+            ### 
             self.passivate()
 
         if self.phase == self.PHASE_PLANNER and self.ind < self.N:
             self.o_usvp.add(self.msgout_usvp)
             if self.log_Time is True: logger.info("GCS->USV_P: DataTime = %s" %(self.msgout_usvp.timestamp))
-            if self.log_Data is True: logger.info("GCS->ISV: Data = %s" %(self.msgout_usvp.payload))
+            if self.log_Data is True: logger.info("GCS->USV_P: Data = %s" %(self.msgout_usvp.payload))
             self.passivate()
 
-        if self.phase == self.PHASE_CLOUD:    
+        if self.phase == self.PHASE_CLOUD and self.ind < self.N:   
             for thing_name in self.thing_names:
                 if self.counter[thing_name] >= self.n_offset:
-                    df = self.db[thing_name].tail(self.n_offset)
+                    #df = self.db[thing_name].tail(self.n_offset)
                     self.get_out_port("o_" + thing_name).add(df)
             self.passivate()
 

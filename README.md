@@ -73,7 +73,7 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
    ```sh
    git clone https://github.com/iscar-ucm/devs-bloom.git
    ```
-3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://drive.google.com/file/d/19ebVEwIzA0eD7wIkQ5ijRXtAgXljbC0h/view?usp=share_link) de Google Drive.
+3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://ucomplutense.sharepoint.com/:u:/r/sites/ia-ges-bloom-cm/Documentos%20compartidos/Modelado/EEMS/Washington-1m-2008-09_UGRID.nc?csf=1&web=1&e=xsI9fI) de Google Drive.
 
 4. Instalar los paquetes de software que serán empleados (se recomienda usar la herramienta pip)
    ```sh

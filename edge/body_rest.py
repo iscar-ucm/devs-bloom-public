@@ -55,4 +55,4 @@ if __name__ == "__main__":
   test()
 
 # To run as flask application:
-#   FLASK_APP=body_rest flask run
+#   FLASK_APP=body_rest flask run --host=0.0.0.0 --port=8080

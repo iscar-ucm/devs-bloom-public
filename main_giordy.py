@@ -53,13 +53,8 @@ class ModelIoT(Coupled):
         # TODO: Complete the FogServer definition
         fog = FogServer("FogServer", usv1.name, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
         # Capa Cloud:
-        cloud = Cloud("Cloud", thing_names, thing_event_ids, host='http://192.168.137.67', log_Time=log_Time, log_Data=log_Data)
+        cloud = Cloud("Cloud", thing_names, thing_event_ids, host='http://192.168.137.154', log_Time=log_Time, log_Data=log_Data)
                     
-        '''
-        #self.pos = round( -1.25*(self.msgout_isv.timestamp.hour-12)**2+180)
-        self.pos = round( -1.25*(self.msgout_isv.timestamp.hour)**2+30*(self.msgout_isv.timestamp.hour))
-        self.data_out_post = cloud_body.postvar(type="angle",value=self.pos,unit="degrees")
-        '''
         # Components:
         self.add_component(generator)
         self.add_component(sensor_n)
@@ -113,7 +108,7 @@ class ModelIoT(Coupled):
 if __name__ == "__main__":
     bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
     simbody: SimBody5 = SimBody5('SimWater', bodyfile)
-    coupled = ModelIoT("ModelIoT", 'data/simulation-journal.txt', simbody, log_Time=False, log_Data=True)
+    coupled = ModelIoT("ModelIoT", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

@@ -73,7 +73,7 @@ Los programas empleados a lo largo de toda la instalación de los paquetes de so
    ```sh
    git clone https://github.com/iscar-ucm/devs-bloom.git
    ```
-3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://ucomplutense.sharepoint.com/:u:/r/sites/ia-ges-bloom-cm/Documentos%20compartidos/Modelado/EEMS/Washington-1m-2008-09_UGRID.nc?csf=1&web=1&e=xsI9fI) de Google Drive.
+3. Incluir el fichero `Washington-1m-2008-09_UGRID.nc` en la carpeta [dataedge/](https://github.com/iscar-ucm/devs-bloom/tree/main/dataedge). Descarga dispolible en el siguiente [enlace](https://ucomplutense.sharepoint.com/:u:/r/sites/ia-ges-bloom-cm/Documentos%20compartidos/Modelado/EEMS/Washington-1m-2008-09_UGRID.nc?csf=1&web=1&e=xsI9fI) de Sharepoint.
 
 4. Instalar los paquetes de software que serán empleados (se recomienda usar la herramienta pip)
    ```sh
@@ -108,11 +108,14 @@ _Para más ejemplos, dirigirse a la [Documentación](https://example.com)_
 <!-- ROADMAP -->
 ## Roadmap
 
-- [x] Versión 1.0 
+- [x] Versión 1.0.0
 - [x] Versión 2.0.0 - Lazo con Inferencia
   - [x] Rama devel
       - [x] main_segundo_v5 update
-      - [x] Incorporación de sensor externo (Capa Cloud)
+      - [x] Comunicación con servidor + control de actuador externo + lectura sensor real (Capa CLOUD)
+      - [ ] Incorporación de puertos de entrada y salida (GCS <-> CLOUD)
+      - [ ] Capacidad para seleccionar el sensor SUN empleado (real/simulado) 
+      - [ ] Dos versiones para los ficheros de salida de la capa CLOUD
       - [ ] Clase Servicios en carpeta externa
 
 

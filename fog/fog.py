@@ -28,6 +28,7 @@ from xdevs.models import Atomic, Coupled, Port
 from edge.sensor import SensorEventId, SensorInfo
 from util.view import Scope
 from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
+from util.reports import FogReportService
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -130,10 +131,6 @@ class GCS(Atomic):
 
     def exit(self):
         """Función de salida de la simulación."""
-        # Aquí tenemos que guardar la base de datos.
-        for thing_name in self.thing_names:
-            self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
-        #self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
         pass
 
     def lambdaf(self):
@@ -144,24 +141,34 @@ class GCS(Atomic):
 
         if self.phase == self.PHASE_ISV and self.ind < self.N:
             self.o_isv.add(self.msgout_isv)
-            if self.log_Time is True: logger.info("GCS->ISV: DataTime = %s" %(self.msgout_isv.timestamp))
-            if self.log_Data is True: logger.info("GCS->ISV: Data = Sensors + msg_usv" )
-        
-            ### EJEMPLO DE ENVÍO A LA CAPA CLOUD
+            if self.log_Time is True:
+                logger.info("GCS->ISV: DataTime = %s" %
+                            (self.msgout_isv.timestamp))
+            if self.log_Data is True:
+                logger.info("GCS->ISV: Data = Sensors + msg_usv")
+
+            # EJEMPLO DE ENVÍO A LA CAPA CLOUD
             for thing_name in self.thing_names:
                 self.get_out_port("o_" + thing_name).add(self.data[thing_name])
-            if self.log_Time is True: logger.info("GCS->CLOUD: DataTime = %s" %(self.msgout_isv.timestamp))
-            if self.log_Data is True: logger.info("GCS->CLOUD: Data = Sensors")
-            ### 
+            if self.log_Time is True:
+                logger.info("GCS->CLOUD: DataTime = %s" %
+                            (self.msgout_isv.timestamp))
+            if self.log_Data is True:
+                logger.info("GCS->CLOUD: Data = Sensors")
+            ###
             self.passivate()
 
         if self.phase == self.PHASE_PLANNER and self.ind < self.N:
             self.o_usvp.add(self.msgout_usvp)
-            if self.log_Time is True: logger.info("GCS->USV_P: DataTime = %s" %(self.msgout_usvp.timestamp))
-            if self.log_Data is True: logger.info("GCS->USV_P: Data = %s" %(self.msgout_usvp.payload))
+            if self.log_Time is True:
+                logger.info("GCS->USV_P: DataTime = %s" %
+                            (self.msgout_usvp.timestamp))
+            if self.log_Data is True:
+                logger.info("GCS->USV_P: Data = %s" %
+                            (self.msgout_usvp.payload))
             self.passivate()
 
-        if self.phase == self.PHASE_CLOUD and self.ind < self.N:   
+        if self.phase == self.PHASE_CLOUD and self.ind < self.N:
             for thing_name in self.thing_names:
                 if self.counter[thing_name] >= self.n_offset:
                     #df = self.db[thing_name].tail(self.n_offset)
@@ -268,6 +275,14 @@ class GCS(Atomic):
                 ##           + " para detectar outliers de " + thing_name + " en el intervalo: (" + init_interval.strftime("%Y/%m/%d %H:%M:%S") + "-"
                 # + stop_interval.strftime("%Y/%m/%d %H:%M:%S") + ")")
                 # self.fit_outlayers(thing_name)
+
+            if cmd.cmd == CommandEventId.CMD_SAVE_DATA:
+                # Aquí tenemos que guardar la base de datos.
+                logger.debug("GCS::deltext: Saving data...")
+                for thing_name in self.thing_names:
+                    self.db[thing_name].to_csv(self.db_path[thing_name] + ".csv")
+                    # self.db["ExtSenS"].to_csv(self.db_path["ExtSenS"] + ".csv")
+                logger.debug("GCS::deltext: done.")
 
     def fit_outlayers(self, edge_device):
         """
@@ -645,6 +660,44 @@ class Inference_Service(Atomic):
         pass
 
 
+class FogReport(Atomic):
+    """Atomic class FogReport, to generate the report of the simulation."""
+
+    def __init__(self, name, base_folder: str = 'datafog'):
+        """Inicialización de atributos."""
+        super().__init__(name)
+        self.iport_cmd = Port(Event, "i_cmd")
+        self.add_in_port(self.iport_cmd)
+        self.base_folder = base_folder
+
+    def initialize(self):
+        """Initialization function."""
+        self.passivate()
+
+    def exit(self):
+        """Exit function."""
+        pass
+
+    def lambdaf(self):
+        """DEVS output function."""
+        pass
+
+    def deltint(self):
+        """DEVS internal transition function."""
+        self.passivate()
+
+    def deltext(self, e):
+        self.continuef(e)
+        """DEVS external transition function."""
+        if self.iport_cmd.empty() is False:
+            cmd: CommandEvent = self.iport_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_FOG_REPORT:
+                logger.debug("FogReport::deltext: Generating report...")
+                report: FogReportService = FogReportService(self.base_folder)
+                report.run()
+                logger.debug("FogReport::deltext: Report generated.")
+
+
 class FogServer(Coupled):
     """Clase acoplada FogServer."""
 
@@ -702,6 +755,11 @@ class FogServer(Coupled):
         self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)
         self.add_coupling(isv.o_out, gcs.i_isv)
+
+        # Reports
+        report: FogReport = FogReport("FogReport", base_folder=base_folder)
+        self.add_component(report)
+        self.add_coupling(self.i_cmd, report.iport_cmd)
 
         '''
         # Nitrates scope

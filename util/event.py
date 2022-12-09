@@ -64,6 +64,8 @@ class CommandEventId(Enum):
     CMD_START_SIM = "START_SIM"
     CMD_STOP_SIM = "STOP_SIM"
     CMD_FIX_OUTLIERS = "FIX_OUTLIERS"
+    CMD_SAVE_DATA = "SAVE_DATA"
+    CMD_FOG_REPORT = "FOG_REPORT"
 
 
 class DataEventColumns:

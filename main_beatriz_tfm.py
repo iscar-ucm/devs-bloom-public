@@ -103,10 +103,11 @@ class ModelBeatrizTFM(Coupled):
 if __name__ == "__main__":
     # Create the output directory:
     model_name: str = "ModelBeatrizTFM"
-    base_folder: str = "output" + "/" + model_name + "_" + strftime("%Y%m%d%H%M%S", localtime())
+    # base_folder: str = "output" + "/" + model_name + "_" + strftime("%Y%m%d%H%M%S", localtime())
+    base_folder: str = "output" + "/" + model_name + "_reports"
     os.makedirs(base_folder, exist_ok=True)
     simbody: SimBody5 = SimBody5('SimWater', './dataedge/Washington-1m-2008-09_UGRID.nc')
-    coupled = ModelBeatrizTFM(model_name, 'data/simulation-journal.txt', simbody, base_folder=base_folder, log_Time=True, log_Data=False)
+    coupled = ModelBeatrizTFM(model_name, 'data/main-beatriz-tfm.txt', simbody, base_folder=base_folder, log_Time=True, log_Data=False)
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate()

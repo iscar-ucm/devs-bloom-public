@@ -88,7 +88,9 @@ class FogReportService:
                     like the model inference and periodically uploads them to the cloud layer. This Figure shows 
                     the signal values recorded by all the sensors of this use case after several days of 
                     simulation.</p>
-                    <img src="figure3.png" width="90%" alt="Sensors' data" class="center">
+                    <p style="text-align:center;">
+                        <img src="figure3.png" width="90%" alt="Sensors data">
+                    </p>
                 </body>
             </html>'''
         return html

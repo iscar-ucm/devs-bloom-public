@@ -10,7 +10,7 @@ from edge.file import FileAskVar,FileOut
 from edge.body import SimBody5
 from edge.sensor import SimSensor5,SensorEventId,SensorInfo
 
-from util.commander import Generator
+from util.util import Generator
 
 class ModelSensor5(Coupled):
     """Clase que implementa un modelo para probar Sensor5 sobre BodySim5."""

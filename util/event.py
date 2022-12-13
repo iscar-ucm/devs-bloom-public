@@ -11,9 +11,15 @@ class Event:
 
     id: str
     source: str
-    target: str = field(default=None)
     timestamp: dt.datetime = field(default_factory=dt.datetime.now)
     payload: dict = field(default_factory=dict)
+
+    def to_string(self) -> str:
+        """Return a string representation of the event."""
+        msg: str = f"{self.id}, {self.source}, {self.timestamp}"
+        for value in self.payload.values():
+            msg += f", {value}"
+        return msg
 
 
 class DataEventId(Enum):

@@ -2,7 +2,7 @@
 
 from xdevs.models import Coupled
 from edge.body import SimBody5
-from util.commander import Generator
+from util.util import Generator
 from edge.sensor import SimSensor5, SensorEventId, SensorInfo
 from edge.usv import USV_Simple
 from fog.fog import FogServer

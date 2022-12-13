@@ -22,6 +22,7 @@ class FogReportService:
 
     def prepare_data(self):
         self.prepare_figure3()
+        self.prepare_figure4()
 
     def prepare_figure3(self):
         fig, ax = plt.subplots(5, 1)
@@ -72,6 +73,38 @@ class FogReportService:
         plt.savefig(self.base_folder + "/figure3.png",
                     dpi=400, bbox_inches='tight')
 
+    def prepare_figure4(self):
+        fig, ax = plt.subplots(4, 1)
+        fig.tight_layout(h_pad=0.5)
+        fig.set_figheight(10)
+
+        # Bloom detection
+        df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        ax[0].set_title('Detection (bool)')
+        ax[0].set_ylim([-0.1, 1.1])
+        ax[0].plot(df["timestamp"], df["bloom_detection"])
+        ax[0].tick_params(labelrotation=20, labelsize=7)
+
+        # Bloom density
+        ax[1].set_title('Density (mg/L)')
+        ax[1].plot(df["timestamp"], df["bloom_size"])
+        ax[1].tick_params(labelrotation=20, labelsize=7)
+
+        # Bloom longitude
+        ax[2].set_title('Longitude (º)')
+        ax[2].plot(df["timestamp"], df["bloom_lon"])
+        ax[2].tick_params(labelrotation=20, labelsize=7)
+
+        # Bloom latitude
+        ax[3].set_title('Latitude (º)')
+        ax[3].plot(df["timestamp"], df["bloom_lat"])
+        ax[3].tick_params(labelrotation=20, labelsize=7)
+
+        fig.suptitle('Inferred Bloom', x=0.2, y=1)
+        plt.savefig(self.base_folder + "/figure4.png",
+                    dpi=400, bbox_inches='tight')
+
     def prepare_html_code(self):
         html = f'''
             <html>
@@ -89,7 +122,17 @@ class FogReportService:
                     the signal values recorded by all the sensors of this use case after several days of 
                     simulation.</p>
                     <p style="text-align:center;">
-                        <img src="figure3.png" width="90%" alt="Sensors data">
+                        <img src="figure3.png" width="70%" alt="Sensors data">
+                    </p>
+                    <h1>Bloom inference model</h1>
+                    <p>The following figure shows the evolution of the HAB inference model.
+                    The first plot shows a boolean value indicating whether the bloom has been detected or not. 
+                    The second plot shows the estimated bloom density. The third and fourth plots show the 
+                    displacement estimation: longitude and latitude. This Figure shows how blooms are detected and 
+                    monitored almost every day. Some of these blooms have significant densities and move around 
+                    significantly, requiring dynamic monitoring.</p>
+                    <p style="text-align:center;">
+                        <img src="figure4.png" width="70%" alt="Bloom inference model">
                     </p>
                 </body>
             </html>'''

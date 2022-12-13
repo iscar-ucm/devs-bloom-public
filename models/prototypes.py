@@ -8,7 +8,7 @@ from edge.file import FileIn, FileAskVar, FileOut, FussionPosBloom
 from fog.fog import FogServer
 from cloud.cloud import Cloud
 from util.event import DataEventId
-from util.commander import Generator
+from util.util import Generator
 from edge.body import SimBody5
 from edge.sensor import SimSensor5, SensorEventId, SensorInfo
 from edge.usv import USV_Simple

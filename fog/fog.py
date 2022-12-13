@@ -26,7 +26,7 @@ from time import strftime, localtime
 from xdevs import get_logger, PHASE_ACTIVE
 from xdevs.models import Atomic, Coupled, Port
 from edge.sensor import SensorEventId, SensorInfo
-from util.view import Scope
+from util.util import DevsCsvFile
 from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
 from util.reports import FogReportService
 
@@ -400,11 +400,10 @@ class Inference_Service(Atomic):
     '''
     PHASE_SENDING = "sending"     # Sending Data
 
-    def __init__(self, name: str, usv_name: str, thing_names, delay: float, base_folder: str=None, log_Time=False, log_Data=False):
+    def __init__(self, name: str, usv_name: str, thing_names, delay: float, log_Time=False, log_Data=False):
         super().__init__(name)
         self.thing_names = thing_names
         self.delay = delay
-        self.base_folder = base_folder
         self.log_Time = log_Time
         self.log_Data = log_Data
 
@@ -448,15 +447,10 @@ class Inference_Service(Atomic):
         self.frame = 0         # Frame
         self.msgout = None      # Message out
 
-        if(self.base_folder is not None):
-            self.base_file = open(self.base_folder + "/" + self.name + ".csv", "w")
-            self.base_file.write("id, source, timestamp, ...\n")
-            
         self.passivate()
 
     def exit(self):
-        if(self.base_folder is not None):
-            self.base_file.close()
+        pass
 
     def deltext(self, e: any):
         """Función DEVS de transición externa."""
@@ -569,7 +563,7 @@ class Inference_Service(Atomic):
                 # Se construye la trama de datos a enviar:
                 self.datetime += dt.timedelta(seconds=self.delay)
                 data = {'usv_power': self.usv_power, 'usv_lon': self.usv_lon, 'usv_lat': self.usv_lat, 'lon_usv_error': self.lon_usv_error,
-                        'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y, 
+                        'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y,
                         'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
                 self.msgout = Event(
                     id=self.msgin.id, source=self.name, timestamp=self.datetime, payload=data)
@@ -647,7 +641,7 @@ class Inference_Service(Atomic):
                 # Se construye la trama de datos a enviar:
                 self.datetime += dt.timedelta(seconds=self.delay)
                 data = {'usv_power': self.usv_power, 'usv_lon': self.usv_lon, 'usv_lat': self.usv_lat, 'lon_usv_error': self.lon_usv_error,
-                        'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y, 
+                        'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y,
                         'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
                 self.msgout = Event(
                     id=self.msgin.id, source=self.name, timestamp=self.datetime, payload=data)
@@ -758,12 +752,20 @@ class FogServer(Coupled):
         self.add_coupling(USVp.o_info, self.get_out_port("o_" + usv_name))
 
         # Inference Service
-        isv = Inference_Service("Inference_Service", usv_name,
-                                thing_names, delay=0, base_folder=base_folder, log_Time=log_Time, log_Data=log_Data)
+        isv = Inference_Service("InferenceService", usv_name,
+                                thing_names, delay=0, log_Time=log_Time, log_Data=log_Data)
         self.add_component(isv)
         self.add_coupling(self.i_cmd, isv.i_cmd)
         self.add_coupling(gcs.o_isv, isv.i_in)
         self.add_coupling(isv.o_out, gcs.i_isv)
+
+        # Save data of the inference service:
+        isv_fields: list = ["id", "source", "timestamp", "usv_power", "usv_lon", "usv_lat", "lon_usv_error", "lat_usv_error",
+                            "sun_radiation", "water_x", "water_y", "bloom_detection", "bloom_size", "bloom_lon", "bloom_lat", "SensorsOn"]
+        isv_csv = DevsCsvFile(name=self.name + "." + isv.name,
+                              source_name=isv.name, fields=isv_fields, base_folder=base_folder)
+        self.add_component(isv_csv)
+        self.add_coupling(isv.o_out, isv_csv.iport_data)
 
         # Reports
         report: FogReport = FogReport("FogReport", base_folder=base_folder)

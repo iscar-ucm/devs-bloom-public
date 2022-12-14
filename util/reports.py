@@ -23,6 +23,7 @@ class FogReportService:
     def prepare_data(self):
         self.prepare_figure3()
         self.prepare_figure4()
+        self.prepare_figure5()
 
     def prepare_figure3(self):
         fig, ax = plt.subplots(5, 1)
@@ -105,6 +106,39 @@ class FogReportService:
         plt.savefig(self.base_folder + "/figure4.png",
                     dpi=400, bbox_inches='tight')
 
+    def prepare_figure5(self):
+        fig, ax = plt.subplots(4, 1)
+        fig.tight_layout(h_pad=0.5)
+        fig.set_figheight(10)
+
+        # USV Power
+        df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        ax[0].set_title('Normalized electric power')
+        ax[0].plot(df["timestamp"], df["usv_power"], label='Battery')
+        ax[0].plot(df["timestamp"], df["sun_radiation"], label='Sun')
+        ax[0].legend(loc="upper right")
+        ax[0].tick_params(labelrotation=20, labelsize=7)
+
+        # USV Speed
+        ax[1].set_title('Speed (Km/h)')
+        ax[1].plot(df["timestamp"], df["usv_power"])
+        ax[1].tick_params(labelrotation=20, labelsize=7)
+
+        # USV longitude
+        ax[2].set_title('Longitude (º)')
+        ax[2].plot(df["timestamp"], df["usv_lon"])
+        ax[2].tick_params(labelrotation=20, labelsize=7)
+
+        # USV latitude
+        ax[3].set_title('Latitude (º)')
+        ax[3].plot(df["timestamp"], df["usv_lat"])
+        ax[3].tick_params(labelrotation=20, labelsize=7)
+
+        fig.suptitle('USV', x=0.2, y=1)
+        plt.savefig(self.base_folder + "/figure5.png",
+                    dpi=400, bbox_inches='tight')
+
     def prepare_html_code(self):
         html = f'''
             <html>
@@ -133,6 +167,15 @@ class FogReportService:
                     significantly, requiring dynamic monitoring.</p>
                     <p style="text-align:center;">
                         <img src="figure4.png" width="70%" alt="Bloom inference model">
+                    </p>
+                    <h1>USV model</h1>
+                    <p>The following Figure depicts the status of the USV model. The first graph shows 
+                    the status of the power unit. The second plot shows the velocity of the USV. The third 
+                    and fourth graphs show the position, longitude, and latitude. On August 30, the Figure 
+                    shows that the USV runs out of battery since it has been tracking blooms to distant points 
+                    for four consecutive days.</p>
+                    <p style="text-align:center;">
+                        <img src="figure5.png" width="70%" alt="USV model">
                     </p>
                 </body>
             </html>'''

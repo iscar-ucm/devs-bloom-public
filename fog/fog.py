@@ -564,7 +564,7 @@ class Inference_Service(Atomic):
                 self.datetime += dt.timedelta(seconds=self.delay)
                 data = {'usv_power': self.usv_power, 'usv_lon': self.usv_lon, 'usv_lat': self.usv_lat, 'lon_usv_error': self.lon_usv_error,
                         'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y,
-                        'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
+                        'water_temp': self.water_temp, 'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
                 self.msgout = Event(
                     id=self.msgin.id, source=self.name, timestamp=self.datetime, payload=data)
                 self.frame += 1
@@ -642,7 +642,7 @@ class Inference_Service(Atomic):
                 self.datetime += dt.timedelta(seconds=self.delay)
                 data = {'usv_power': self.usv_power, 'usv_lon': self.usv_lon, 'usv_lat': self.usv_lat, 'lon_usv_error': self.lon_usv_error,
                         'lat_usv_error': self.lat_usv_error, 'sun_radiation': self.sun_radiation, 'water_x': self.water_x, 'water_y': self.water_y,
-                        'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
+                        'water_temp': self.water_temp, 'bloom_detection': self.bloom, 'bloom_size': self.bloom_size, 'bloom_lon': self.bloom_lon, 'bloom_lat': self.bloom_lat, 'SensorsOn': self.SensorsOn}
                 self.msgout = Event(
                     id=self.msgin.id, source=self.name, timestamp=self.datetime, payload=data)
                 self.frame += 1
@@ -761,7 +761,7 @@ class FogServer(Coupled):
 
         # Save data of the inference service:
         isv_fields: list = ["id", "source", "timestamp", "usv_power", "usv_lon", "usv_lat", "lon_usv_error", "lat_usv_error",
-                            "sun_radiation", "water_x", "water_y", "bloom_detection", "bloom_size", "bloom_lon", "bloom_lat", "SensorsOn"]
+                            "sun_radiation", "water_x", "water_y", "water_temp", "bloom_detection", "bloom_size", "bloom_lon", "bloom_lat", "SensorsOn"]
         isv_csv = DevsCsvFile(name=self.name + "." + isv.name,
                               source_name=isv.name, fields=isv_fields, base_folder=base_folder)
         self.add_component(isv_csv)

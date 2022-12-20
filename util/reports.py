@@ -1,4 +1,7 @@
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.animation import FuncAnimation
+from functools import partial
 import pandas as pd
 import numpy as np
 import logging
@@ -10,8 +13,9 @@ logger = get_logger(__name__, logging.DEBUG)
 class FogReportService:
     """Class to generate fog reports."""
 
-    def __init__(self, base_folder: str = 'output'):
+    def __init__(self, base_folder: str = 'output', emms_file: str = 'dataedge/Washington-1m-2008-09_UGRID.nc'):
         self.base_folder = base_folder
+        self.emms_file = emms_file
         self.html_title = "Fog Report"
 
     def run(self):
@@ -21,9 +25,101 @@ class FogReportService:
             f.write(self.prepare_html_code())
 
     def prepare_data(self):
+        self.prepare_figure1()
         self.prepare_figure3()
         self.prepare_figure4()
         self.prepare_figure5()
+
+    def update(self, usv_data, ax, num_frames, step):
+        logger.debug("Figure 1: current frame is: " + str(step) + "/100")
+        ax[0].clear()
+        ax[1].clear()
+        ax[2].clear()
+
+        # Preparing the index:
+        size_steps = num_frames/100
+        curr_index = int(step*size_steps)
+
+#        mean_water_speed = np.mean(
+#            np.sqrt((usv_data["water_x"][frame])**2 + (usv_data["water_y"][frame])**2))
+#        mean_wind_speed = np.mean(
+#            np.sqrt((usv_data["wind_x"][frame])**2 + (usv_data["wind_y"][frame])**2))
+
+        plt.suptitle(usv_data["timestamp"][curr_index].strftime(
+            "%d/%m/%Y, %H:%M"), x=0.2, y=1, fontsize='small')
+#        ax[1].set_title(
+#            f"Mean Water Speed (m/s): {mean_water_speed:.6f}", fontsize='small')
+#        ax[2].set_title(
+#            f"Mean Wind Speed (m/s): {mean_wind_speed:.6f}", fontsize='small')
+
+        # ax[0].set_xlabel("Hour")
+        # ax[1].set_xlabel("Longitude")
+        # ax[2].set_xlabel("Longitude")
+
+        ax[0].tick_params(axis='y', colors='red')
+        # ax[1].set_ylabel("Latitude")
+        # ax[2].set_ylabel("Latitude")
+
+        #ax0.set_ylim([19, 21])
+
+        #ax[1].set_xlim([-122.25, -122.2])
+        #ax[1].set_ylim([47.5, 47.55])
+
+        #ax[2].set_xlim([-122.25, -122.2])
+        #ax[2].set_ylim([47.5, 47.55])
+
+        # Legend
+        #lines_labels = [ax.get_legend_handles_labels() for ax in fig.axes]
+        #lines, labels = [sum(lol, []) for lol in zip(*lines_labels)]
+        # fig.legend(lines, labels, loc="upper left",
+        #           bbox_to_anchor=(0.05, 0.98), prop={'size': 6})
+
+        # GRAPHIC 1
+        # ----------------------
+        # Water temperature
+        ax[0].plot(usv_data["timestamp"][0:curr_index], usv_data["water_temp"]
+                 [0:curr_index], color="red", label="Water Temperature (ºC)")
+        line = ax[0].plot(usv_data["timestamp"][curr_index],
+                 usv_data["water_temp"][curr_index], marker="o", color="red")
+        # ----------------------
+
+        # GRAPHIC 2
+        # ----------------------
+        # Water speed
+        # ax[1].quiver(zonal_lon, zonal_lat, usv_data["water_x"][frame]/10, usv_data["water_y"][frame]/10, color='b')
+        # ----------------------
+
+        # GRAPHIC 3
+        # ----------------------
+        # Wind speed
+        # line = ax[2].quiver(zonal_lon, zonal_lat, usv_data["wind_x"]
+        #                    [frame] / 10, usv_data["wind_y"][frame] / 10, color='b')
+        # ----------------------
+
+        return line
+
+    def prepare_figure1(self):
+        # Prepare the interval and important data
+        usv_data = pd.read_csv(
+            self.base_folder + "/FogServer.InferenceService.csv")
+        usv_data['timestamp'] = pd.to_datetime(usv_data['timestamp'])
+        # ini_date = usv_data['timestamp'].min()
+        # end_date = usv_data['timestamp'].max()
+        # hours = pd.date_range(ini_date, end_date, freq='H')
+
+        # Prepare the figure
+        fig, ax = plt.subplots(3, 1)
+        fig.tight_layout(h_pad=0.5)
+        fig.set_figheight(10)
+        # ani = FuncAnimation(fig, partial(self.update, usv_data, ax),
+        #                     repeat=False, frames=len(usv_data['timestamp']), interval=10, blit=True)
+        ani = FuncAnimation(fig, partial(self.update, usv_data, ax, len(usv_data['timestamp'])),
+                            repeat=False, blit=True)
+        # plt.subplots_adjust(wspace=0.7)
+        # plt.show()
+        # ani.save("figure1.gif", writer=ani.ImageMagickWriter(fps=30))
+        ani.save(self.base_folder + "/figure1.mp4",
+                 writer=animation.FFMpegWriter(fps=5))
 
     def prepare_figure3(self):
         fig, ax = plt.subplots(5, 1)

@@ -1,10 +1,15 @@
+import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import FuncAnimation
 from functools import partial
+from matplotlib.patches import Polygon
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
 import pandas as pd
 import numpy as np
 import logging
+import netCDF4 as nc
 from xdevs import get_logger
 
 logger = get_logger(__name__, logging.DEBUG)
@@ -30,22 +35,22 @@ class FogReportService:
         self.prepare_figure4()
         self.prepare_figure5()
 
-    def update(self, usv_data, ax, num_frames, step):
-        logger.debug("Figure 1: current frame is: " + str(step) + "/100")
-        ax[0].clear()
-        ax[1].clear()
-        ax[2].clear()
+    def update(self, ax, color_bars, usv_data, num_frames_usv, emms_data, num_frames_emms, step):
+        logger.debug("Generating figure 1: current frame is: " +
+                     str(step) + "/100")
 
         # Preparing the index:
-        size_steps = num_frames/100
-        curr_index = int(step*size_steps)
+        size_step_usv = num_frames_usv/100
+        curr_indx_usv = int(step*size_step_usv)
+        size_step_emms = num_frames_emms/100
+        curr_indx_emms = int(step*size_step_emms)
 
 #        mean_water_speed = np.mean(
 #            np.sqrt((usv_data["water_x"][frame])**2 + (usv_data["water_y"][frame])**2))
 #        mean_wind_speed = np.mean(
 #            np.sqrt((usv_data["wind_x"][frame])**2 + (usv_data["wind_y"][frame])**2))
 
-        plt.suptitle(usv_data["timestamp"][curr_index].strftime(
+        plt.suptitle(usv_data["timestamp"][curr_indx_usv].strftime(
             "%d/%m/%Y, %H:%M"), x=0.2, y=1, fontsize='small')
 #        ax[1].set_title(
 #            f"Mean Water Speed (m/s): {mean_water_speed:.6f}", fontsize='small')
@@ -56,7 +61,6 @@ class FogReportService:
         # ax[1].set_xlabel("Longitude")
         # ax[2].set_xlabel("Longitude")
 
-        ax[0].tick_params(axis='y', colors='red')
         # ax[1].set_ylabel("Latitude")
         # ax[2].set_ylabel("Latitude")
 
@@ -77,43 +81,166 @@ class FogReportService:
         # GRAPHIC 1
         # ----------------------
         # Water temperature
-        ax[0].plot(usv_data["timestamp"][0:curr_index], usv_data["water_temp"]
-                 [0:curr_index], color="red", label="Water Temperature (ºC)")
-        line = ax[0].plot(usv_data["timestamp"][curr_index],
-                 usv_data["water_temp"][curr_index], marker="o", color="red")
+        ax[0][0].clear()
+        ax[0][0].tick_params(axis='y', colors='red')
+        ax[0][0].plot(usv_data["timestamp"][0:curr_indx_usv], usv_data["water_temp"]
+                      [0:curr_indx_usv], color="red", label="Water Temperature (ºC)")
+        ax[0][0].plot(usv_data["timestamp"][curr_indx_usv],
+                      usv_data["water_temp"][curr_indx_usv], marker="o", color="red")
         # ----------------------
 
         # GRAPHIC 2
         # ----------------------
         # Water speed
-        # ax[1].quiver(zonal_lon, zonal_lat, usv_data["water_x"][frame]/10, usv_data["water_y"][frame]/10, color='b')
+        ax[0][1].clear()
+        ax[0][1].set_xlim([-122.25, -122.2])
+        ax[0][1].set_ylim([47.5, 47.55])
+        ax[0][1].quiver(emms_data["zonal_lon"], emms_data["zonal_lat"], emms_data["water_x"]
+                        [curr_indx_emms][54][:]/10, emms_data["water_y"][curr_indx_emms][54][:]/10, color='b')
         # ----------------------
 
         # GRAPHIC 3
         # ----------------------
         # Wind speed
-        # line = ax[2].quiver(zonal_lon, zonal_lat, usv_data["wind_x"]
-        #                    [frame] / 10, usv_data["wind_y"][frame] / 10, color='b')
+        ax[0][2].clear()
+        ax[0][2].set_xlim([-122.25, -122.2])
+        ax[0][2].set_ylim([47.5, 47.55])
+        ax[0][2].quiver(emms_data["zonal_lon"], emms_data["zonal_lat"], emms_data["wind_x"]
+                        [curr_indx_emms][:]/10, emms_data["wind_y"][curr_indx_emms][:]/10, color='b')
         # ----------------------
+
+        # GRAPHIC 4
+        # ----------------------
+        # Algae concentration
+        ax[1][0].clear()
+        ax[1][0].add_collection(color_bars["collection1"])
+        ax[1][0].set_xlim([-122.25, -122.2])
+        ax[1][0].set_ylim([47.5, 47.55])
+        ax[1][0].set_title("Sim. Bloom, Inf. Bloom & Ship Pos.", fontsize = 'small')
+        ax[1][0].set_xlabel("Longitude")
+        ax[1][0].set_ylabel("Latitude")
+        alg = np.array(
+            list(map(color_bars["norm1"], emms_data["algae"][curr_indx_emms][1][54][:])))
+        colors1 = color_bars["cmap1"](alg)
+        color_bars["collection1"].set_color(colors1)
+        # USV trajectory
+        ax[1][0].plot(usv_data["usv_lon"][curr_indx_usv], usv_data["usv_lat"][curr_indx_usv], color = "black", marker = 'd', markersize = 5)
+        # Infected bloom
+        # TODO: This boolean has a initial blank space. Fix it at the inference service.
+        if(usv_data["bloom_detection"][curr_indx_usv]==" True"):
+            circle  = Circle((usv_data["bloom_lon"][curr_indx_usv], usv_data["bloom_lat"][curr_indx_usv]), radius = 0.05 * math.sqrt(usv_data["bloom_size"][curr_indx_usv]), fill = False, color = "red") 
+            ax[1][0].add_patch(circle)
+        ax[1][0].autoscale_view()
+
+        # GRAPHIC 5
+        # ----------------------
+        # Disolved Oxygen
+        ax[1][1].clear()
+        ax[1][1].add_collection(color_bars["collection2"])
+        ax[1][1].set_xlim([-122.25, -122.2])
+        ax[1][1].set_ylim([47.5, 47.55])
+        ax[1][1].set_title("Disolved Oxygen", fontsize = 'small')
+        ax[1][1].set_xlabel("Longitude")
+        ax[1][1].set_ylabel("Latitude")
+        disox = np.array(
+            list(map(color_bars["norm2"], emms_data["dox"][curr_indx_emms][54][:])))
+        colors2 = color_bars["cmap2"](disox)
+        color_bars["collection2"].set_color(colors2)
+        ax[1][1].autoscale_view()
+
+        # GRAPHIC 5
+        # ----------------------
+        # Disolved Oxygen
+        ax[1][2].clear()
+        ax[1][2].add_collection(color_bars["collection3"])
+        ax[1][2].set_xlim([-122.25, -122.2])
+        ax[1][2].set_ylim([47.5, 47.55])
+        ax[1][2].set_title("Nitrate", fontsize = 'small')
+        ax[1][2].set_xlabel("Longitude")
+        ax[1][2].set_ylabel("Latitude")
+        nit = np.array(
+            list(map(color_bars["norm3"], emms_data["nox"][curr_indx_emms][54][:])))
+        colors3 = color_bars["cmap3"](nit)
+        color_bars["collection3"].set_color(colors3)
+        line = ax[1][2].autoscale_view()
 
         return line
 
     def prepare_figure1(self):
         # Prepare the interval and important data
+        # USV
         usv_data = pd.read_csv(
             self.base_folder + "/FogServer.InferenceService.csv")
         usv_data['timestamp'] = pd.to_datetime(usv_data['timestamp'])
-        # ini_date = usv_data['timestamp'].min()
-        # end_date = usv_data['timestamp'].max()
-        # hours = pd.date_range(ini_date, end_date, freq='H')
+        # EMMS
+        emms_df = nc.Dataset(self.emms_file)
+        emms_data = {}
+        # Zonal longitude
+        emms_data["zonal_lon"] = emms_df.variables["lonc"][:]
+        # Zonal latitude
+        emms_data["zonal_lat"] = emms_df.variables["latc"][:]
+        # Wind speed x axis
+        emms_data["wind_x"] = emms_df.variables["wind_x"][:]
+        # Wind speed y axis
+        emms_data["wind_y"] = emms_df.variables["wind_y"][:]
+        # Water speed x axis
+        emms_data["water_x"] = emms_df.variables["U"][:]
+        # Water speed y axis
+        emms_data["water_y"] = emms_df.variables["V"][:]
+        # Algae concentration
+        emms_data["algae"] = emms_df.variables["ALG"][:]  
+        # Dissolved oxygen 
+        emms_data["dox"] = emms_df.variables["DOX"][:]                   
+        # Nitrate nitrogen 
+        emms_data["nox"] = emms_df.variables["NOX"][:]                   
 
         # Prepare the figure
-        fig, ax = plt.subplots(3, 1)
+        fig, ax = plt.subplots(2, 3)
         fig.tight_layout(h_pad=0.5)
-        fig.set_figheight(10)
+
+        # Prepare the color bars
+        color_bars = {}
+        # subplot 1
+        color_bars["cmap1"] = plt.get_cmap('viridis')
+        color_bars["norm1"] = plt.Normalize(0, 10)
+        sm1 = plt.cm.ScalarMappable(cmap = color_bars["cmap1"])
+        sm1.set_clim(vmin = 0, vmax = 10)
+        cbar1 = plt.colorbar(sm1, ax = ax[1][0])
+        cbar1.set_label('Algae (mg/L)')
+        # subplot 2
+        color_bars["cmap2"] = plt.get_cmap('viridis')
+        color_bars["norm2"] = plt.Normalize(0, 25)
+        sm2 = plt.cm.ScalarMappable(cmap = color_bars["cmap2"])
+        sm2.set_clim(vmin = 0, vmax = 25)
+        cbar2 = plt.colorbar(sm2, ax = ax[1][1])
+        cbar2.set_label('Disolved Oxygen (mg/L)')
+        # subplot 3
+        color_bars["cmap3"] = plt.get_cmap('viridis')
+        color_bars["norm3"] = plt.Normalize(0, 0.2)
+        sm3 = plt.cm.ScalarMappable(cmap = color_bars["cmap3"])
+        sm3.set_clim(vmin = 0, vmax = 0.2)
+        cbar3 = plt.colorbar(sm3, ax = ax[1][2])
+        cbar3.set_label('Nitrate (mg/L)')
+
+        # Color map
+        nodal_lon = emms_df.variables["lon"][:] 
+        nodal_lat = emms_df.variables["lat"][:] 
+        nodes = emms_df.variables["nv"][:]
+        longitude = nodal_lon[nodes-1]
+        latitude  = nodal_lat[nodes-1]
+        patches = []
+        for i in range(len(longitude)):
+            verts   = np.column_stack((longitude[i], latitude[i])) 
+            polygon = Polygon(verts, closed = True) 
+            patches.append(polygon)
+        color_bars["collection1"] = PatchCollection(patches)
+        color_bars["collection2"] = PatchCollection(patches)
+        color_bars["collection3"] = PatchCollection(patches)
+
+        # fig.set_figheight(10)
         # ani = FuncAnimation(fig, partial(self.update, usv_data, ax),
         #                     repeat=False, frames=len(usv_data['timestamp']), interval=10, blit=True)
-        ani = FuncAnimation(fig, partial(self.update, usv_data, ax, len(usv_data['timestamp'])),
+        ani = FuncAnimation(fig, partial(self.update, ax, color_bars, usv_data, len(usv_data['timestamp']), emms_data, len(emms_data["wind_x"])),
                             repeat=False, blit=True)
         # plt.subplots_adjust(wspace=0.7)
         # plt.show()
@@ -242,6 +369,20 @@ class FogReportService:
                     <title>{self.html_title}</title>
                 </head>
                 <body>
+                    <h1>Bloom tracking simulation</h1>
+                    <p>The following video illustrates the simulation state while tracking of a CB. It contains 
+                    sensor measurements and maps some signals that are part of the simulation, described below:
+                    <ul>
+                        <li>The upper left graph shows the water temperature</li>
+                        <li>...</li>
+                    </ul>
+                    </p>
+                    <p style="text-align:center;">
+                        <video width="90%" controls>
+                            <source src="figure1.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </p>
                     <h1>Sensors</h1>
                     <p>Currently, all the data used in this simulation are synthetic. Consequently, 
                     all the sensors work on virtual mode, as DTs. When a sensor must take a measurement, 

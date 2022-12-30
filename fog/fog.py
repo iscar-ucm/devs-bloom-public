@@ -765,6 +765,7 @@ class FogServer(Coupled):
         isv_csv = DevsCsvFile(name=self.name + "." + isv.name,
                               source_name=isv.name, fields=isv_fields, base_folder=base_folder)
         self.add_component(isv_csv)
+        self.add_coupling(self.i_cmd, isv_csv.iport_cmd)
         self.add_coupling(isv.o_out, isv_csv.iport_data)
 
         # Reports

@@ -7,7 +7,7 @@ from bokeh.models import ColumnDataSource
 from bokeh.plotting import figure
 from xdevs import get_logger
 from xdevs.models import Atomic, Port
-from util.event import CommandEvent, Event
+from util.event import CommandEvent, CommandEventId, Event
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -30,6 +30,7 @@ class Generator(Atomic):
         """Inicialización de la simulación DEVS."""
         reader = open(self.commands_path, mode='r')
         self.commands = reader.readlines()[1:]
+        self.commands = [x for x in self.commands if not x.startswith('#')]
         super().passivate()
         if (len(self.commands) > 0):  # At least we must have two commands
             self.cmd_counter = 0
@@ -72,6 +73,7 @@ class Generator(Atomic):
 
 class DevsCsvFile(Atomic):
     """Class to save data in csv file."""
+    PHASE_WRITING:str = "WRITING"
 
     def __init__(self, name: str, source_name: str, fields: list, base_folder: str):
         """Class constructor"""
@@ -81,21 +83,16 @@ class DevsCsvFile(Atomic):
         self.base_folder: str = base_folder
         self.iport_data: Port = Port(Event, "data")
         self.add_in_port(self.iport_data)
+        self.iport_cmd = Port(CommandEvent, "cmd")
+        self.add_in_port(self.iport_cmd)
 
     def initialize(self):
         """DEVS initialize function."""
-        self.base_file = open(self.base_folder + "/" + self.name + ".csv", "w")    
-        for pos, field in enumerate(self.fields):
-            if(pos > 0):
-                self.base_file.write(",")
-            self.base_file.write(field)
-        self.base_file.write("\n")
         super().passivate()
 
     def exit(self):
         """DEVS exit function."""
-        if(self.base_folder is not None):
-            self.base_file.close()
+        pass
 
     def lambdaf(self):
         """DEVS lambda function."""
@@ -108,10 +105,25 @@ class DevsCsvFile(Atomic):
     def deltext(self, e):
         """DEVS deltext function."""
         self.continuef(e)
-        if (self.iport_data.empty() is False):
+        # Command input port                
+        if self.iport_cmd.empty() is False:
+            cmd: CommandEvent = self.iport_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_START_SIM:
+                self.base_file = open(self.base_folder + "/" + self.name + ".csv", "w")    
+                for pos, field in enumerate(self.fields):
+                    if(pos > 0):
+                        self.base_file.write(",")
+                    self.base_file.write(field)
+                self.base_file.write("\n")
+                super().passivate(DevsCsvFile.PHASE_WRITING)
+            if cmd.cmd == CommandEventId.CMD_STOP_SIM:
+                if(self.base_folder is not None):
+                    self.base_file.close()
+                super().passivate()
+        if (self.iport_data.empty() is False and self.phase == DevsCsvFile.PHASE_WRITING):
             data: Event = self.iport_data.get()
             self.base_file.write(data.to_string() + "\n")
-        super().passivate()
+            super().passivate(DevsCsvFile.PHASE_WRITING)
 
 
 class ScopeView:

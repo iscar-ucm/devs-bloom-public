@@ -12,7 +12,8 @@ from xdevs import get_logger
 import requests
 from datetime import datetime
 from time import perf_counter 
-from util.event import CommandEvent, CommandEventId, DataEventId, EnergyEventId, Event, DataEventColumns, SensorEventId
+from util.event import CommandEvent, CommandEventId, Event, DataEventColumns
+from util.reports import CloudReportService
 
 logger = get_logger(__name__, logging.DEBUG)
 
@@ -22,9 +23,10 @@ class Cloud(Atomic):
     #PHASE_GET   = "GET data from server" 
     #PHASE_POST  = "POST data to server"
 
-    def __init__(self, name: str, thing_names:list, thing_event_ids:list, host='http://localhost:80',  log_Time=False, log_Data=False):
+    def __init__(self, name: str, base_folder: str = 'output', thing_names:list = [], thing_event_ids:list = [], host='http://localhost:80',  log_Time=False, log_Data=False):
         """Función de inicialización de atributos."""
         super().__init__(name)
+        self.base_folder     = base_folder
         # Dirección IP del servidor (Esp32)
         self.timeout         = 0.5
         self.thing_names     = thing_names
@@ -32,6 +34,9 @@ class Cloud(Atomic):
         self.host            = host
         self.log_Time        = log_Time
         self.log_Data        = log_Data 
+
+        self.iport_cmd = Port(CommandEvent, "cmd")
+        self.add_in_port(self.iport_cmd)
 
         for i in range(0, len(self.thing_names)):
             thing_name = thing_names[i]
@@ -110,6 +115,15 @@ class Cloud(Atomic):
                 #self.msgout=Event(id=self.msgin_usv.id,source=self.name,timestamp=self.msg,payload=self.msgin_usv.payload)
                 self.msg = {}   
                 super().activate(self.PHASE_REQUEST)
+        # Command input port                
+        if self.iport_cmd.empty() is False:
+            cmd: CommandEvent = self.iport_cmd.get()
+            if cmd.cmd == CommandEventId.CMD_CLOUD_REPORT:
+                logger.debug("Cloud::deltext: Generating report...")
+                report: CloudReportService = CloudReportService(self.base_folder)
+                report.run()
+                logger.debug("Cloud::deltext: Report generated.")
+
                 
 
     # Funciones implementadas con la librería requests

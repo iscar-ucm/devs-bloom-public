@@ -45,38 +45,8 @@ class FogReportService:
         size_step_emms = num_frames_emms/100
         curr_indx_emms = int(step*size_step_emms)
 
-#        mean_water_speed = np.mean(
-#            np.sqrt((usv_data["water_x"][frame])**2 + (usv_data["water_y"][frame])**2))
-#        mean_wind_speed = np.mean(
-#            np.sqrt((usv_data["wind_x"][frame])**2 + (usv_data["wind_y"][frame])**2))
-
         plt.suptitle(usv_data["timestamp"][curr_indx_usv].strftime(
             "%d/%m/%Y, %H:%M"), x=0.2, y=1, fontsize='small')
-#        ax[1].set_title(
-#            f"Mean Water Speed (m/s): {mean_water_speed:.6f}", fontsize='small')
-#        ax[2].set_title(
-#            f"Mean Wind Speed (m/s): {mean_wind_speed:.6f}", fontsize='small')
-
-        # ax[0].set_xlabel("Hour")
-        # ax[1].set_xlabel("Longitude")
-        # ax[2].set_xlabel("Longitude")
-
-        # ax[1].set_ylabel("Latitude")
-        # ax[2].set_ylabel("Latitude")
-
-        #ax0.set_ylim([19, 21])
-
-        #ax[1].set_xlim([-122.25, -122.2])
-        #ax[1].set_ylim([47.5, 47.55])
-
-        #ax[2].set_xlim([-122.25, -122.2])
-        #ax[2].set_ylim([47.5, 47.55])
-
-        # Legend
-        #lines_labels = [ax.get_legend_handles_labels() for ax in fig.axes]
-        #lines, labels = [sum(lol, []) for lol in zip(*lines_labels)]
-        # fig.legend(lines, labels, loc="upper left",
-        #           bbox_to_anchor=(0.05, 0.98), prop={'size': 6})
 
         # GRAPHIC 1
         # ----------------------
@@ -237,14 +207,8 @@ class FogReportService:
         color_bars["collection2"] = PatchCollection(patches)
         color_bars["collection3"] = PatchCollection(patches)
 
-        # fig.set_figheight(10)
-        # ani = FuncAnimation(fig, partial(self.update, usv_data, ax),
-        #                     repeat=False, frames=len(usv_data['timestamp']), interval=10, blit=True)
         ani = FuncAnimation(fig, partial(self.update, ax, color_bars, usv_data, len(usv_data['timestamp']), emms_data, len(emms_data["wind_x"])),
                             repeat=False, blit=True)
-        # plt.subplots_adjust(wspace=0.7)
-        # plt.show()
-        # ani.save("figure1.gif", writer=ani.ImageMagickWriter(fps=30))
         ani.save(self.base_folder + "/figure1.mp4",
                  writer=animation.FFMpegWriter(fps=5))
 
@@ -413,6 +377,56 @@ class FogReportService:
                     for four consecutive days.</p>
                     <p style="text-align:center;">
                         <img src="figure5.png" width="70%" alt="USV model">
+                    </p>
+                </body>
+            </html>'''
+        return html
+
+
+class CloudReportService:
+    """Class to generate fog reports."""
+
+    def __init__(self, base_folder: str = 'output', emms_file: str = 'dataedge/Washington-1m-2008-09_UGRID.nc'):
+        self.base_folder = base_folder
+        self.emms_file = emms_file
+        self.html_title = "Cloud Report"
+
+    def run(self):
+        logger.debug("CloudReportService::run()")
+        self.prepare_data()
+        with open(self.base_folder + '/cloud_report.html', 'w') as f:
+            f.write(self.prepare_html_code())
+
+    def prepare_data(self):
+        self.prepare_report1()
+        self.prepare_report2()
+
+    def prepare_report1(self):
+        df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
+        self.report1 = df.describe()
+
+    def prepare_report2(self):
+        df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
+        self.report2 = pd.DataFrame(columns=["Title", "Value"])
+        n_blooms = (df.bloom_detection & ~df.bloom_detection.shift(periods=1, fill_value=False)).sum() 
+        self.report2.loc[len(self.report2)] = {"Title": "Number of blooms detected", "Value": n_blooms}
+
+    def prepare_html_code(self):
+        html = f'''
+            <html>
+                <head>
+                    <title>{self.html_title}</title>
+                </head>
+                <body>
+                    <h1>General inference stats</h1>
+                    <p>Lorem ipsum.</p>
+                    <p style="text-align:center;">
+                        {self.report1.to_html(index=True)}
+                    </p>
+                    <h1>Blooom stats</h1>
+                    <p>Lorem ipsum.</p>
+                    <p style="text-align:center;">
+                        {self.report2.to_html(index=False)}
                     </p>
                 </body>
             </html>'''

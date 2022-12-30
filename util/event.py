@@ -16,9 +16,9 @@ class Event:
 
     def to_string(self) -> str:
         """Return a string representation of the event."""
-        msg: str = f"{self.id}, {self.source}, {self.timestamp}"
+        msg: str = f"{self.id},{self.source},{self.timestamp}"
         for value in self.payload.values():
-            msg += f", {value}"
+            msg += f",{value}"
         return msg
 
 
@@ -72,6 +72,7 @@ class CommandEventId(Enum):
     CMD_FIX_OUTLIERS = "FIX_OUTLIERS"
     CMD_SAVE_DATA = "SAVE_DATA"
     CMD_FOG_REPORT = "FOG_REPORT"
+    CMD_CLOUD_REPORT = "CLOUD_REPORT"
 
 
 class DataEventColumns:

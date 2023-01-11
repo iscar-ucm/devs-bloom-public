@@ -400,16 +400,30 @@ class CloudReportService:
     def prepare_data(self):
         self.prepare_report1()
         self.prepare_report2()
+        self.prepare_report3()
 
     def prepare_report1(self):
+        """Prepare report 1: general statistics."""
         df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
         self.report1 = df.describe()
 
     def prepare_report2(self):
+        """Prepare report 2: number of blooms detected."""
         df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
         self.report2 = pd.DataFrame(columns=["Title", "Value"])
         n_blooms = (df.bloom_detection & ~df.bloom_detection.shift(periods=1, fill_value=False)).sum() 
         self.report2.loc[len(self.report2)] = {"Title": "Number of blooms detected", "Value": n_blooms}
+
+    def prepare_report3(self):
+        """Prepare report 3: heat map of detected blooms."""
+        df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
+        num_rows: int = len(df)
+        self.report3 = pd.DataFrame(columns=["latitude", "longitude", "density"])
+        for index, row in df.iterrows():
+            density: float = 0.0
+            if row.bloom_detection is True:
+                density = 1.0/num_rows
+            self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon), 'density'] += density
 
     def prepare_html_code(self):
         html = f'''
@@ -427,6 +441,11 @@ class CloudReportService:
                     <p>Lorem ipsum.</p>
                     <p style="text-align:center;">
                         {self.report2.to_html(index=False)}
+                    </p>
+                    <h1>Probanility map</h1>
+                    <p>Lorem ipsum.</p>
+                    <p style="text-align:center;">
+                        {self.report3.to_html(index=False)}
                     </p>
                 </body>
             </html>'''

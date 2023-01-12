@@ -9,6 +9,7 @@ from matplotlib.collections import PatchCollection
 import pandas as pd
 import numpy as np
 import logging
+import plotly.express as px
 import netCDF4 as nc
 from xdevs import get_logger
 
@@ -86,7 +87,8 @@ class FogReportService:
         ax[1][0].add_collection(color_bars["collection1"])
         ax[1][0].set_xlim([-122.25, -122.2])
         ax[1][0].set_ylim([47.5, 47.55])
-        ax[1][0].set_title("Sim. Bloom, Inf. Bloom & Ship Pos.", fontsize = 'small')
+        ax[1][0].set_title(
+            "Sim. Bloom, Inf. Bloom & Ship Pos.", fontsize='small')
         ax[1][0].set_xlabel("Longitude")
         ax[1][0].set_ylabel("Latitude")
         alg = np.array(
@@ -94,11 +96,13 @@ class FogReportService:
         colors1 = color_bars["cmap1"](alg)
         color_bars["collection1"].set_color(colors1)
         # USV trajectory
-        ax[1][0].plot(usv_data["usv_lon"][curr_indx_usv], usv_data["usv_lat"][curr_indx_usv], color = "black", marker = 'd', markersize = 5)
+        ax[1][0].plot(usv_data["usv_lon"][curr_indx_usv], usv_data["usv_lat"]
+                      [curr_indx_usv], color="black", marker='d', markersize=5)
         # Infected bloom
         # TODO: This boolean has a initial blank space. Fix it at the inference service.
-        if(usv_data["bloom_detection"][curr_indx_usv]==" True"):
-            circle  = Circle((usv_data["bloom_lon"][curr_indx_usv], usv_data["bloom_lat"][curr_indx_usv]), radius = 0.05 * math.sqrt(usv_data["bloom_size"][curr_indx_usv]), fill = False, color = "red") 
+        if (usv_data["bloom_detection"][curr_indx_usv] == " True"):
+            circle = Circle((usv_data["bloom_lon"][curr_indx_usv], usv_data["bloom_lat"][curr_indx_usv]),
+                            radius=0.05 * math.sqrt(usv_data["bloom_size"][curr_indx_usv]), fill=False, color="red")
             ax[1][0].add_patch(circle)
         ax[1][0].autoscale_view()
 
@@ -109,7 +113,7 @@ class FogReportService:
         ax[1][1].add_collection(color_bars["collection2"])
         ax[1][1].set_xlim([-122.25, -122.2])
         ax[1][1].set_ylim([47.5, 47.55])
-        ax[1][1].set_title("Disolved Oxygen", fontsize = 'small')
+        ax[1][1].set_title("Disolved Oxygen", fontsize='small')
         ax[1][1].set_xlabel("Longitude")
         ax[1][1].set_ylabel("Latitude")
         disox = np.array(
@@ -125,7 +129,7 @@ class FogReportService:
         ax[1][2].add_collection(color_bars["collection3"])
         ax[1][2].set_xlim([-122.25, -122.2])
         ax[1][2].set_ylim([47.5, 47.55])
-        ax[1][2].set_title("Nitrate", fontsize = 'small')
+        ax[1][2].set_title("Nitrate", fontsize='small')
         ax[1][2].set_xlabel("Longitude")
         ax[1][2].set_ylabel("Latitude")
         nit = np.array(
@@ -158,11 +162,11 @@ class FogReportService:
         # Water speed y axis
         emms_data["water_y"] = emms_df.variables["V"][:]
         # Algae concentration
-        emms_data["algae"] = emms_df.variables["ALG"][:]  
-        # Dissolved oxygen 
-        emms_data["dox"] = emms_df.variables["DOX"][:]                   
-        # Nitrate nitrogen 
-        emms_data["nox"] = emms_df.variables["NOX"][:]                   
+        emms_data["algae"] = emms_df.variables["ALG"][:]
+        # Dissolved oxygen
+        emms_data["dox"] = emms_df.variables["DOX"][:]
+        # Nitrate nitrogen
+        emms_data["nox"] = emms_df.variables["NOX"][:]
 
         # Prepare the figure
         fig, ax = plt.subplots(2, 3)
@@ -173,35 +177,35 @@ class FogReportService:
         # subplot 1
         color_bars["cmap1"] = plt.get_cmap('viridis')
         color_bars["norm1"] = plt.Normalize(0, 10)
-        sm1 = plt.cm.ScalarMappable(cmap = color_bars["cmap1"])
-        sm1.set_clim(vmin = 0, vmax = 10)
-        cbar1 = plt.colorbar(sm1, ax = ax[1][0])
+        sm1 = plt.cm.ScalarMappable(cmap=color_bars["cmap1"])
+        sm1.set_clim(vmin=0, vmax=10)
+        cbar1 = plt.colorbar(sm1, ax=ax[1][0])
         cbar1.set_label('Algae (mg/L)')
         # subplot 2
         color_bars["cmap2"] = plt.get_cmap('viridis')
         color_bars["norm2"] = plt.Normalize(0, 25)
-        sm2 = plt.cm.ScalarMappable(cmap = color_bars["cmap2"])
-        sm2.set_clim(vmin = 0, vmax = 25)
-        cbar2 = plt.colorbar(sm2, ax = ax[1][1])
+        sm2 = plt.cm.ScalarMappable(cmap=color_bars["cmap2"])
+        sm2.set_clim(vmin=0, vmax=25)
+        cbar2 = plt.colorbar(sm2, ax=ax[1][1])
         cbar2.set_label('Disolved Oxygen (mg/L)')
         # subplot 3
         color_bars["cmap3"] = plt.get_cmap('viridis')
         color_bars["norm3"] = plt.Normalize(0, 0.2)
-        sm3 = plt.cm.ScalarMappable(cmap = color_bars["cmap3"])
-        sm3.set_clim(vmin = 0, vmax = 0.2)
-        cbar3 = plt.colorbar(sm3, ax = ax[1][2])
+        sm3 = plt.cm.ScalarMappable(cmap=color_bars["cmap3"])
+        sm3.set_clim(vmin=0, vmax=0.2)
+        cbar3 = plt.colorbar(sm3, ax=ax[1][2])
         cbar3.set_label('Nitrate (mg/L)')
 
         # Color map
-        nodal_lon = emms_df.variables["lon"][:] 
-        nodal_lat = emms_df.variables["lat"][:] 
+        nodal_lon = emms_df.variables["lon"][:]
+        nodal_lat = emms_df.variables["lat"][:]
         nodes = emms_df.variables["nv"][:]
         longitude = nodal_lon[nodes-1]
-        latitude  = nodal_lat[nodes-1]
+        latitude = nodal_lat[nodes-1]
         patches = []
         for i in range(len(longitude)):
-            verts   = np.column_stack((longitude[i], latitude[i])) 
-            polygon = Polygon(verts, closed = True) 
+            verts = np.column_stack((longitude[i], latitude[i]))
+            polygon = Polygon(verts, closed=True)
             patches.append(polygon)
         color_bars["collection1"] = PatchCollection(patches)
         color_bars["collection2"] = PatchCollection(patches)
@@ -384,7 +388,10 @@ class FogReportService:
 
 
 class CloudReportService:
-    """Class to generate fog reports."""
+    """
+    Class to generate cloud reports. In the future, it should provide support for several water bodies. 
+    Currently, it manages one single water body.
+    """
 
     def __init__(self, base_folder: str = 'output', emms_file: str = 'dataedge/Washington-1m-2008-09_UGRID.nc'):
         self.base_folder = base_folder
@@ -411,22 +418,29 @@ class CloudReportService:
         """Prepare report 2: number of blooms detected."""
         df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
         self.report2 = pd.DataFrame(columns=["Title", "Value"])
-        n_blooms = (df.bloom_detection & ~df.bloom_detection.shift(periods=1, fill_value=False)).sum() 
-        self.report2.loc[len(self.report2)] = {"Title": "Number of blooms detected", "Value": n_blooms}
+        n_blooms = (df.bloom_detection & ~df.bloom_detection.shift(
+            periods=1, fill_value=False)).sum()
+        self.report2.loc[len(self.report2)] = {
+            "Title": "Number of blooms detected", "Value": n_blooms}
 
     def prepare_report3(self):
         """Prepare report 3: heat map of detected blooms."""
         df = pd.read_csv(self.base_folder + "/FogServer.InferenceService.csv")
-        num_rows: int = len(df)
-        self.report3 = pd.DataFrame(columns=["latitude", "longitude", "density"])
+        self.report3 = pd.DataFrame(
+            columns=["latitude", "longitude", "density"])
         for index, row in df.iterrows():
-            density: float = 0.0
+            density: int = 0
             if row.bloom_detection is True:
-                density = 1.0/num_rows
+                density = 1.0
             if self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon)].empty:
-                self.report3.loc[len(self.report3)] = {"latitude": row.bloom_lat, "longitude": row.bloom_lon, "density": density}
+                self.report3.loc[len(self.report3)] = {
+                    "latitude": row.bloom_lat, "longitude": row.bloom_lon, "density": density}
             else:
-                self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon), 'density'] += density
+                self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (
+                    self.report3['longitude'] == row.bloom_lon), 'density'] += density
+        fig = px.density_mapbox(self.report3, lat='latitude', zoom=12,
+                                lon='longitude', z='density', mapbox_style="stamen-terrain")
+        fig.write_html(self.base_folder + "/cloud-report3.html")
 
     def prepare_html_code(self):
         html = f'''
@@ -445,10 +459,10 @@ class CloudReportService:
                     <p style="text-align:center;">
                         {self.report2.to_html(index=False)}
                     </p>
-                    <h1>Probanility map</h1>
+                    <h1>Bloom map</h1>
                     <p>Lorem ipsum.</p>
                     <p style="text-align:center;">
-                        {self.report3.to_html(index=False)}
+                        <iframe id="cloud-report3" scrolling="no" style="border:none;" seamless="seamless" src="cloud-report3.html" height="525" width="100%"></iframe>
                     </p>
                 </body>
             </html>'''

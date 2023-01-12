@@ -208,7 +208,7 @@ class FogReportService:
         color_bars["collection3"] = PatchCollection(patches)
 
         ani = FuncAnimation(fig, partial(self.update, ax, color_bars, usv_data, len(usv_data['timestamp']), emms_data, len(emms_data["wind_x"])),
-                            repeat=False, blit=True)
+                            repeat=False, blit=False)
         ani.save(self.base_folder + "/figure1.mp4",
                  writer=animation.FFMpegWriter(fps=5))
 
@@ -423,7 +423,10 @@ class CloudReportService:
             density: float = 0.0
             if row.bloom_detection is True:
                 density = 1.0/num_rows
-            self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon), 'density'] += density
+            if self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon)].empty:
+                self.report3.loc[len(self.report3)] = {"latitude": row.bloom_lat, "longitude": row.bloom_lon, "density": density}
+            else:
+                self.report3.loc[(self.report3['latitude'] == row.bloom_lat) & (self.report3['longitude'] == row.bloom_lon), 'density'] += density
 
     def prepare_html_code(self):
         html = f'''

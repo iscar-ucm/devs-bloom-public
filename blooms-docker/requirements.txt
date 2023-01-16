@@ -1,9 +1,0 @@
-xdevs
-numpy
-scipy
-requests
-pyproj
-pandas
-netCDF4
-flask
-flask_cors

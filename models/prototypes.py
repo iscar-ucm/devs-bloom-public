@@ -1,13 +1,17 @@
 """Clase que implementa algunos prototipos de modelos."""
 
+from xmlrpc.client import boolean
 from xdevs.models import Coupled
 import datetime as dt
 from xdevs.sim import Coordinator
-from edge.file import FileIn, FussionPosBloom
+from edge.file import FileIn, FileAskVar, FileOut, FussionPosBloom
 from fog.fog import FogServer
 from cloud.cloud import Cloud
 from util.event import DataEventId
-
+from util.util import Generator
+from edge.body import SimBody5
+from edge.sensor import SimSensor5, SensorEventId, SensorInfo
+from edge.usv import USV_Simple
 
 class Model_01(Coupled):
     """Clase que implementa un modelo simple con un único UAV."""
@@ -166,10 +170,14 @@ class Model_03(Coupled):
         self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
                           cloud.get_in_port("i_body_2_mod"))
 
+
 class Model_04(Coupled):
-    """Clase que implementa un 2 masas de agua
+    """
+    Clase que implementa un 2 masas de agua.
+
     Body1 con UAV11
-    Body2 con UAV21 y UAV22"""
+    Body2 con UAV21 y UAV22
+    """
 
     def __init__(self, name, start, day, log=False):
         """Función de inicialización."""
@@ -182,7 +190,7 @@ class Model_04(Coupled):
         bloom11 = FileIn("DetBlo11", "data/B1S1DetBloom"+day+".xlsx",
                          start=start, dataid=DataEventId.BLOOM, log=log)
         fusion11 = FussionPosBloom("EdgeFussion11")
-        
+
         # FOG SEVER 2: Masa de agua 2
         fog2 = FogServer("FogServer2", n_uav=2)
         # UAV 21
@@ -191,16 +199,16 @@ class Model_04(Coupled):
         bloom21 = FileIn("DetBlo21", "data/B2S1DetBloom"+day+".xlsx",
                          start=start, dataid=DataEventId.BLOOM, log=log)
         fusion21 = FussionPosBloom("EdgeFussion21")
-         # UAV 22
+        # UAV 22
         ship22 = FileIn("ShipPos22", "data/B2S2LatLon"+day+".xlsx",
                         start=start, dataid=DataEventId.POS3D, log=log)
         bloom22 = FileIn("DetBlo22", "data/B2S2DetBloom"+day+".xlsx",
                          start=start, dataid=DataEventId.BLOOM, log=log)
         fusion22 = FussionPosBloom("EdgeFussion22")
-       
+
         # Capa Cloud:
         cloud = Cloud("Cloud", num_water_bodies=2)
-        
+
         self.add_component(fog1)
         self.add_component(ship11)
         self.add_component(bloom11)
@@ -234,8 +242,268 @@ class Model_04(Coupled):
                           cloud.get_in_port("i_body_2_raw"))
         self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
                           cloud.get_in_port("i_body_2_mod"))
+
+
+class ModelCommander(Coupled):
+    """
+    Clase que implementa un modelo con dos UAV x 2 masas de agua.
+
+    Además, introduce el Commander, para introducir eventos de simulación.
+    """
+
+    def __init__(self, name, commands_path: str, day: str, log=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # Commander
+        commander = Generator("Commander", commands_path)
+        # FOG SEVER 1: Masa de agua 1
+        fog1 = FogServer("FogServer1", n_uav=2)
+        # UAV 11
+        ship11 = FileIn("ShipPos11", "data/LatLon"+day+".xlsx",
+                        dataid=DataEventId.POS3D, log=log)
+        bloom11 = FileIn("DetBlo11", "data/DetBloom"+day+".xlsx",
+                         dataid=DataEventId.BLOOM, log=log)
+        fusion11 = FussionPosBloom("EdgeFussion11")
+        # UAV 12
+        ship12 = FileIn("ShipPos12", "data/LatLon"+day+".xlsx",
+                        dataid=DataEventId.POS3D, log=log)
+        bloom12 = FileIn("DetBlo12", "data/DetBloom"+day+".xlsx",
+                         dataid=DataEventId.BLOOM, log=log)
+        fusion12 = FussionPosBloom("EdgeFussion12")
+        # FOG SEVER 2: Masa de agua 2
+        fog2 = FogServer("FogServer2", n_uav=2)
+        # UAV 21
+        ship21 = FileIn("ShipPos21", "data/LatLon"+day+".xlsx",
+                        dataid=DataEventId.POS3D, log=log)
+        bloom21 = FileIn("DetBlo21", "data/DetBloom"+day+".xlsx",
+                         dataid=DataEventId.BLOOM, log=log)
+        fusion21 = FussionPosBloom("EdgeFussion21")
+        # UAV 22
+        ship22 = FileIn("ShipPos22", "data/LatLon"+day+".xlsx",
+                        dataid=DataEventId.POS3D, log=log)
+        bloom22 = FileIn("DetBlo22", "data/DetBloom"+day+".xlsx",
+                         dataid=DataEventId.BLOOM, log=log)
+        fusion22 = FussionPosBloom("EdgeFussion22")
+        # Capa Cloud:
+        cloud = Cloud("Cloud", num_water_bodies=2)
+        self.add_component(commander)
+        self.add_component(fog1)
+        self.add_component(ship11)
+        self.add_component(bloom11)
+        self.add_component(fusion11)
+        self.add_component(ship12)
+        self.add_component(bloom12)
+        self.add_component(fusion12)
+        self.add_component(fog2)
+        self.add_component(ship21)
+        self.add_component(bloom21)
+        self.add_component(fusion21)
+        self.add_component(ship22)
+        self.add_component(bloom22)
+        self.add_component(fusion22)
+        self.add_component(cloud)
+        self.add_coupling(commander.o_cmd, ship11.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom11.i_cmd)
+        self.add_coupling(commander.o_cmd, ship12.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom12.i_cmd)
+        self.add_coupling(commander.o_cmd, ship21.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom21.i_cmd)
+        self.add_coupling(commander.o_cmd, ship22.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom22.i_cmd)
+        self.add_coupling(commander.o_cmd, fog1.i_cmd)
+        self.add_coupling(commander.o_cmd, fog2.i_cmd)
+        self.add_coupling(ship11.o_out, fusion11.i_Pos)
+        self.add_coupling(bloom11.o_out, fusion11.i_Blo)
+        self.add_coupling(ship12.o_out, fusion12.i_Pos)
+        self.add_coupling(bloom12.o_out, fusion12.i_Blo)
+        self.add_coupling(fusion11.o_out, fog1.get_in_port("i_fusion_1"))
+        self.add_coupling(fusion12.o_out, fog1.get_in_port("i_fusion_2"))
+        self.add_coupling(fog1.get_out_port("o_fusion_1_raw"),
+                          cloud.get_in_port("i_body_1_raw"))
+        self.add_coupling(fog1.get_out_port("o_fusion_2_raw"),
+                          cloud.get_in_port("i_body_1_raw"))
+        self.add_coupling(fog1.get_out_port("o_fusion_1_mod"),
+                          cloud.get_in_port("i_body_1_mod"))
+        self.add_coupling(fog1.get_out_port("o_fusion_2_mod"),
+                          cloud.get_in_port("i_body_1_mod"))
+        self.add_coupling(ship21.o_out, fusion21.i_Pos)
+        self.add_coupling(bloom21.o_out, fusion21.i_Blo)
+        self.add_coupling(ship22.o_out, fusion22.i_Pos)
+        self.add_coupling(bloom22.o_out, fusion22.i_Blo)
+        self.add_coupling(fusion21.o_out, fog2.get_in_port("i_fusion_1"))
+        self.add_coupling(fusion22.o_out, fog2.get_in_port("i_fusion_2"))
+        self.add_coupling(fog2.get_out_port("o_fusion_1_raw"),
+                          cloud.get_in_port("i_body_2_raw"))
+        self.add_coupling(fog2.get_out_port("o_fusion_2_raw"),
+                          cloud.get_in_port("i_body_2_raw"))
+        self.add_coupling(fog2.get_out_port("o_fusion_1_mod"),
+                          cloud.get_in_port("i_body_2_mod"))
+        self.add_coupling(fog2.get_out_port("o_fusion_2_mod"),
+                          cloud.get_in_port("i_body_2_mod"))
+
+
+class ModelOutliers(Coupled):
+    """Clase que implementa un modelo con dos UAV x 2 masas de agua."""
+
+    def __init__(self, name: str, commands_path: str, day: str, log=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # Commander
+        commander = Generator("Commander", commands_path)
+        # FOG SEVER 1: Masa de agua 1
+        # UAV 11
+        ship11 = FileIn("ShipPos11", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom11 = FileIn("DetBlo11", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion11 = FussionPosBloom("EdgeFussion11")
+        # UAV 12
+        ship12 = FileIn("ShipPos12", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom12 = FileIn("DetBlo12", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion12 = FussionPosBloom("EdgeFussion12")
+        fog1 = FogServer("FogServer1", [fusion11.name, fusion12.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
+        # FOG SEVER 2: Masa de agua 2
+        # UAV 21
+        ship21 = FileIn("ShipPos21", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom21 = FileIn("DetBlo21", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion21 = FussionPosBloom("EdgeFussion21")
+        # UAV 22
+        ship22 = FileIn("ShipPos22", "data/LatLon"+day+".xlsx", dataid=DataEventId.POS3D, log=log)
+        bloom22 = FileIn("DetBlo22", "data/DetBloom"+day+".xlsx", dataid=DataEventId.BLOOM, log=log)
+        fusion22 = FussionPosBloom("EdgeFussion22")
+        fog2 = FogServer("FogServer2", [fusion21.name, fusion22.name], [FussionPosBloom.data_id.value, FussionPosBloom.data_id.value])
+        # Capa Cloud:
+        cloud = Cloud("Cloud", [DataEventId.POSBLOOM.name])
+        self.add_component(commander)
+        self.add_component(fog1)
+        self.add_component(ship11)
+        self.add_component(bloom11)
+        self.add_component(fusion11)
+        self.add_component(ship12)
+        self.add_component(bloom12)
+        self.add_component(fusion12)
+        self.add_component(fog2)
+        self.add_component(ship21)
+        self.add_component(bloom21)
+        self.add_component(fusion21)
+        self.add_component(ship22)
+        self.add_component(bloom22)
+        self.add_component(fusion22)
+        self.add_component(cloud)
+        self.add_coupling(commander.o_cmd, ship11.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom11.i_cmd)
+        self.add_coupling(commander.o_cmd, ship12.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom12.i_cmd)
+        self.add_coupling(commander.o_cmd, ship21.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom21.i_cmd)
+        self.add_coupling(commander.o_cmd, ship22.i_cmd)
+        self.add_coupling(commander.o_cmd, bloom22.i_cmd)
+        self.add_coupling(commander.o_cmd, fog1.i_cmd)
+        self.add_coupling(commander.o_cmd, fog2.i_cmd)
+        self.add_coupling(ship11.o_out, fusion11.i_Pos)
+        self.add_coupling(bloom11.o_out, fusion11.i_Blo)
+        self.add_coupling(ship12.o_out, fusion12.i_Pos)
+        self.add_coupling(bloom12.o_out, fusion12.i_Blo)
+        self.add_coupling(fusion11.o_out, fog1.get_in_port("i_" + fusion11.name))
+        self.add_coupling(fusion12.o_out, fog1.get_in_port("i_" + fusion12.name))
+        self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion11.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(fog1.get_out_port("o_" + fusion12.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(ship21.o_out, fusion21.i_Pos)
+        self.add_coupling(bloom21.o_out, fusion21.i_Blo)
+        self.add_coupling(ship22.o_out, fusion22.i_Pos)
+        self.add_coupling(bloom22.o_out, fusion22.i_Blo)
+        self.add_coupling(fusion21.o_out, fog2.get_in_port("i_" + fusion21.name))
+        self.add_coupling(fusion22.o_out, fog2.get_in_port("i_" + fusion22.name))
+        self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_raw"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_raw"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion21.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+        self.add_coupling(fog2.get_out_port("o_" + fusion22.name + "_mod"), cloud.get_in_port("i_" + DataEventId.POSBLOOM.name + "_mod"))
+
+
+class ModelJournal(Coupled):
+    """Clase que implementa un modelo de la pila IoT como entidad virtual."""
     
-    
+    def __init__(self, name: str, commands_path: str, simbody: SimBody5, log_Time=False, log_Data=False):
+        """Función de inicialización."""
+        super().__init__(name)
+        # Simulation file
+        generator = Generator("Commander", commands_path)
+
+        # FOG SEVER 1: Masa de agua 1
+        '''#SE PRESCINDE DEL FILEASKVAR (Incorporado en el USV) 
+        '''
+        # Sensores Internos
+        sensor_info_n = SensorInfo(id=SensorEventId.NOX, description="Nitrogen sensor (mg/L)", delay=6, max=0.5, min=0.0, precision=0.1, noisebias=0.01, noisesigma=0.001)
+        sensor_info_o = SensorInfo(id=SensorEventId.DOX, description="Oxigen sensor (mg/L)", delay=5, max=30.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
+        sensor_info_a = SensorInfo(id=SensorEventId.ALG, description="Algae detector (mg/L)", delay=7, max=15.0, min=0.0, precision=1.0, noisebias=1.0, noisesigma=0.1)
+        sensor_info_t = SensorInfo(id=SensorEventId.WTE, description="Water temperature sensor (ºC)", delay=4, max=30, min=0, precision=0.1, noisebias=0.01, noisesigma=0.1)
+        sensor_info_u = SensorInfo(id=SensorEventId.WFU, description="East water flow (m/s)", delay=4, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_v = SensorInfo(id=SensorEventId.WFV, description="Nord water flow (m/s)", delay=4, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_s = SensorInfo(id=SensorEventId.SUN, description="Sun radiation (n.u.)", delay=2, max=1.0, min=0, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_x = SensorInfo(id=SensorEventId.WFX, description="East wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_info_y = SensorInfo(id=SensorEventId.WFY, description="Nord wind flow (m/s)", delay=3, max=0.1, min=-0.1, precision=0.01, noisebias=0.001, noisesigma=0.001)
+        sensor_n = SimSensor5("SimSenN", simbody, sensor_info_n, log_Time=log_Time, log_Data=log_Data)
+        sensor_o = SimSensor5("SimSenO", simbody, sensor_info_o, log_Time=log_Time, log_Data=log_Data)
+        sensor_a = SimSensor5("SimSenA", simbody, sensor_info_a, log_Time=log_Time, log_Data=log_Data)
+        sensor_t = SimSensor5("SimSenT", simbody, sensor_info_t, log_Time=log_Time, log_Data=log_Data)
+        sensor_u = SimSensor5("SimSenU", simbody, sensor_info_u, log_Time=log_Time, log_Data=log_Data)
+        sensor_v = SimSensor5("SimSenV", simbody, sensor_info_v, log_Time=log_Time, log_Data=log_Data)
+        sensor_s = SimSensor5("SimSenS", simbody, sensor_info_s, log_Time=log_Time, log_Data=log_Data)
+        sensor_x = SimSensor5("SimSenX", simbody, sensor_info_x, log_Time=log_Time, log_Data=log_Data)
+        sensor_y = SimSensor5("SimSenY", simbody, sensor_info_y, log_Time=log_Time, log_Data=log_Data)
+
+        thing_names = [sensor_n.name, sensor_o.name, sensor_a.name, sensor_t.name, sensor_u.name,
+                       sensor_v.name, sensor_s.name, sensor_x.name, sensor_y.name]
+        thing_event_ids = [sensor_info_n.id.value, sensor_info_o.id.value, sensor_info_a.id.value,
+                           sensor_info_t.id.value, sensor_info_u.id.value, sensor_info_v.id.value,
+                           sensor_info_s.id.value, sensor_info_x.id.value, sensor_info_y.id.value]
+         
+        # Se crea la clase provisionar del barco
+        usv1 = USV_Simple("USV_1",'./dataedge/', simbody, delay=0, log_Time=log_Time, log_Data=log_Data)
+        
+        # TODO: Complete the FogServer definition
+        fog = FogServer("FogServer", usv1.name, thing_names, thing_event_ids, sensor_s, log_Time=log_Time, log_Data=log_Data)
+        # Capa Cloud:
+        #cloud = Cloud("Cloud", [SensorEventId.POSBLOOM.name], host='http://192.168.137.80', log_Time=log_Time, log_Data=log_Data)
+                
+        # Components:
+        self.add_component(generator)
+        self.add_component(sensor_n)
+        self.add_component(sensor_o)
+        self.add_component(sensor_a)
+        self.add_component(sensor_t)
+        self.add_component(sensor_u)
+        self.add_component(sensor_v)
+        self.add_component(sensor_s)
+        self.add_component(sensor_x)
+        self.add_component(sensor_y)
+        self.add_component(usv1)
+        self.add_component(fog)
+        # Coupling relations:
+        self.add_coupling(generator.o_cmd, fog.i_cmd)
+        self.add_coupling(generator.o_cmd, usv1.i_cmd)
+        self.add_coupling(usv1.o_sensor, sensor_n.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_o.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_a.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_t.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_u.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_v.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_x.i_in)
+        self.add_coupling(usv1.o_sensor, sensor_y.i_in)
+        self.add_coupling(fog.o_sensor, sensor_s.i_in)
+        self.add_coupling(usv1.o_out,  fog.get_in_port("i_" + usv1.name))
+        #self.add_coupling(usv1.o_info, fog.get_in_port("i_" + usv1.name))
+        self.add_coupling(sensor_n.o_out, fog.get_in_port("i_" + sensor_n.name))
+        self.add_coupling(sensor_o.o_out, fog.get_in_port("i_" + sensor_o.name))
+        self.add_coupling(sensor_a.o_out, fog.get_in_port("i_" + sensor_a.name))
+        self.add_coupling(sensor_t.o_out, fog.get_in_port("i_" + sensor_t.name))
+        self.add_coupling(sensor_u.o_out, fog.get_in_port("i_" + sensor_u.name))
+        self.add_coupling(sensor_v.o_out, fog.get_in_port("i_" + sensor_v.name))
+        self.add_coupling(sensor_s.o_out, fog.get_in_port("i_" + sensor_s.name))
+        self.add_coupling(sensor_x.o_out, fog.get_in_port("i_" + sensor_x.name))
+        self.add_coupling(sensor_y.o_out, fog.get_in_port("i_" + sensor_y.name))
+        self.add_coupling(fog.get_out_port("o_" + usv1.name), usv1.i_in)
+
 
 def test_01():
     """Comprobamos el funcionamiento de alguno de los modelos."""
@@ -275,6 +543,7 @@ def test_03():
     coord.simulate_time(sim_seconds)
     coord.exit()
 
+
 def test_04():
     """Comprobamos el funcionamiento de alguno de los modelos."""
     day = "20210801"
@@ -285,4 +554,36 @@ def test_04():
     coord = Coordinator(coupled)
     coord.initialize()
     coord.simulate_time(sim_seconds)
+    coord.exit()
+
+
+def test_commander():
+    """Comprobamos el funcionamiento de alguno de los modelos."""
+    day = "20210801"
+    coupled = ModelCommander("day_" + day, 'data/simulation-example.txt',
+                             day=day, log=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate()
+    coord.exit()
+
+
+def test_outliers():
+    """Comprobamos el funcionamiento de los outliers."""
+    day = "20210801"
+    coupled = ModelOutliers("day_" + day, 'data/simulation-example.txt', day=day, log=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate()
+    coord.exit()
+
+
+def test_journal():
+    """Comprobamos el modelo para el journal."""
+    bodyfile: str = './dataedge/Washington-1m-2008-09_UGRID.nc'
+    simbody: SimBody5 = SimBody5('SimWater', bodyfile)
+    coupled = ModelJournal("ModelJournal", 'data/simulation-journal.txt', simbody, log_Time=True, log_Data=False)
+    coord = Coordinator(coupled)
+    coord.initialize()
+    coord.simulate()
     coord.exit()

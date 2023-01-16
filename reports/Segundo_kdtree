@@ -1,0 +1,59 @@
+#Pruebas pra añadir la sigma y profundidad
+import numpy as np
+import netCDF4
+from scipy.spatial import KDTree
+
+filename = './body/Washington-1d-2008-09-12_compr.nc'
+#varname = 'WQ_O'
+varname = 'WQ_N'
+#varname='WQ_ALG'
+#varname = 'Temp'
+
+nc = netCDF4.Dataset(filename)
+# File info format HDF5:
+
+# File info
+#print(nc) # General attributes
+print(nc.dimensions)
+print(nc.variables.keys()) # All variables names
+print(nc.variables) # All variables and their attributes
+
+# Read variables
+#   Not all variables have the same dimensions, see file info for details
+lat = np.array(nc['lat'])
+lon = np.array(nc['lon'])
+bottom = np.array(nc['Bottom'])
+sigma = np.array(nc['sigma'])
+wsel= np.array(nc['WSEL'])
+time= np.array(nc['time'])
+layers= np.array(nc['layers'])
+var= np.array(nc[varname])
+
+# Remove fill values
+#   The cells in which no water is present are filled with FillValue
+#   Change FillValue to NaN so that those cells don't appear in the plot
+inan= lat == nc['lat'].FillValue
+lat[inan] = np.nan
+lon[inan] = np.nan
+bottom[inan]=np.nan
+layers[inan]= np.nan
+#sigma[sigma== -999]=np.nan   #No tiene FillValue
+sigma[sigma>1]=np.nan
+sigma[sigma<0]=np.nan
+#sigma[sigma== 0]=np.nan
+wsel[wsel== nc['WSEL'].FillValue]=np.nan
+#wsel[wsel==0]=np.nan
+var[var== nc[varname].FillValue]=np.nan
+var[var==0] =np.nan
+
+
+#lo=lon[~np.isnan(lon)]
+#la=lat[~np.isnan(lat)]
+lo0=np.nan_to_num(lon)
+la0=np.nan_to_num(lat)
+llc=np.c_[lo0.ravel(), la0.ravel()]
+lonlattree = KDTree(llc)
+#lonlattree = KDTree(np.c_[lon.ravel(), lat.ravel()])
+dd,ii=lonlattree.query([-122.25,47.62])
+ill=np.unravel_index(ii,(len(lo0),len(lo0[0])))
+print(lon[ill],lat[ill])
